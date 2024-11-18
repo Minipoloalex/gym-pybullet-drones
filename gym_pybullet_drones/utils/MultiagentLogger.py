@@ -221,6 +221,7 @@ class Logger(object):
         for j in range(self.NUM_DRONES):
             axs[row].plot(t, self.states[j, 2, :], label="drone_"+str(j))
         axs[row].set_xlabel('time (s)')
+        axs[row].set_ylabel('z (m)')
         #### Velocity ##############################################
         row = 1
         for j in range(self.NUM_DRONES):
