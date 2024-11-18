@@ -187,7 +187,7 @@ if __name__ == "__main__":
     ModelCatalog.register_custom_model("cc_model", CustomTorchCentralizedCriticModel)
 
     #### Register the environment ##############################
-    temp_env_name = "this-aviary-v0"
+    temp_env_name = f"{ARGS.env}-aviary-v0"
     if ARGS.env == 'flock':
         register_env(temp_env_name, lambda _: FlockAviary(num_drones=ARGS.num_drones,
                                                           aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
