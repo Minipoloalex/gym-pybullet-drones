@@ -47,6 +47,8 @@ from gym_pybullet_drones.envs.single_agent_rl.FlyThruGateAviary import FlyThruGa
 from gym_pybullet_drones.envs.single_agent_rl.TuneAviary import TuneAviary
 from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType
 
+from torch.utils.tensorboard.writer import SummaryWriter
+
 import shared_constants
 
 EPISODE_REWARD_THRESHOLD = -0 # Upperbound: rewards are always negative, but non-zero
@@ -66,7 +68,7 @@ if __name__ == "__main__":
     #### Save directory ########################################
     filename = os.path.dirname(os.path.abspath(__file__))+'/results/save-'+ARGS.env+'-'+ARGS.algo+'-'+ARGS.obs.value+'-'+ARGS.act.value+'-'+datetime.now().strftime("%m.%d.%Y_%H.%M.%S")
     if not os.path.exists(filename):
-        os.makedirs(filename+'/')
+        os.makedirs(filename+'/tb/')
 
     #### Print out current git commit hash #####################
     git_commit = subprocess.check_output(["git", "describe", "--tags"]).strip()
@@ -144,13 +146,16 @@ if __name__ == "__main__":
                     train_env,
                     policy_kwargs=onpolicy_kwargs,
                     tensorboard_log=filename+'/tb/',
-                    verbose=1
+                    verbose=2
                     ) if ARGS.obs == ObservationType.KIN else PPO(a2cppoCnnPolicy,
                                                                   train_env,
                                                                   policy_kwargs=onpolicy_kwargs,
                                                                   tensorboard_log=filename+'/tb/',
                                                                   verbose=1
                                                                   )
+        print("----------------------------------------------------")
+        print(f"Filename: '{filename}/tb/'")
+        print("----------------------------------------------------")
 
     #### Off-policy algorithms #################################
     offpolicy_kwargs = dict(activation_fn=torch.nn.ReLU,
@@ -192,7 +197,7 @@ if __name__ == "__main__":
                                                                 tensorboard_log=filename+'/tb/',
                                                                 verbose=1
                                                                 )
-
+    print(f"Running with {model}")
     #### Create eveluation environment #########################
     if ARGS.obs == ObservationType.KIN: 
         eval_env = gym.make(env_name,
@@ -207,7 +212,7 @@ if __name__ == "__main__":
                                     n_envs=1,
                                     seed=0
                                     )
-        if env_nam == "hover-aviary-v0": 
+        if env_name == "hover-aviary-v0": 
             eval_env = make_vec_env(HoverAviary,
                                     env_kwargs=sa_env_kwargs,
                                     n_envs=1,
