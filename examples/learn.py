@@ -53,7 +53,7 @@ if __name__ == "__main__":
                     env,
                     verbose=1
                     )
-        model.learn(total_timesteps=10000) # Typically not enough
+        model.learn(total_timesteps=1000000) # Typically not enough
     else:
         ray.shutdown()
         ray.init(ignore_reinit_error=True)

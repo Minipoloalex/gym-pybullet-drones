@@ -3,6 +3,7 @@ from setuptools import setup
 setup(
     name='gym_pybullet_drones',
     version='0.6.0',
+    packages=['gym_pybullet_drones'],
     install_requires=[
         'numpy==1.20.1',
         'Pillow==8.1.0',
