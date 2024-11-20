@@ -169,7 +169,7 @@ if __name__ == "__main__":
 
     #### Initialize Ray Tune ###################################
     ray.shutdown()
-    ray.init(ignore_reinit_error=True)
+    ray.init(ignore_reinit_error=True, num_gpus=1)
 
     #### Register the custom centralized critic model ##########
     ModelCatalog.register_custom_model("cc_model", CustomTorchCentralizedCriticModel)
