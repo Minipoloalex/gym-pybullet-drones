@@ -26,9 +26,9 @@ import pybullet as p
 import pickle
 import matplotlib.pyplot as plt
 import gymnasium as gym
-from gym import error, spaces, utils
-from gym.utils import seeding
-from gym.spaces import Box, Dict
+from gymnasium import error, spaces, utils
+from gymnasium.utils import seeding
+from gymnasium.spaces import Box, Dict
 import torch
 import torch.nn as nn
 from ray.rllib.models.torch.fcnet import FullyConnectedNetwork

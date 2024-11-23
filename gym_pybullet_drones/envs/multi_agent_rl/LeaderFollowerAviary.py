@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from gym import spaces
+from gymnasium import spaces
 from ray.rllib.env.multi_agent_env import MultiAgentEnv, ENV_STATE
 
 from gym_pybullet_drones.envs.BaseAviary import DroneModel, Physics, BaseAviary

@@ -11,7 +11,7 @@ egl = pkgutil.get_loader('eglRenderer')
 import numpy as np
 import pybullet as p
 import pybullet_data
-import gym
+import gymnasium as gym
 
 class DroneModel(Enum):
     """Drone models enumeration class."""
@@ -118,7 +118,7 @@ class BaseAviary(gym.Env):
         self.PHYSICS = physics
         self.OBSTACLES = obstacles
         self.USER_DEBUG = user_debug_gui
-        self.URDF = self.DRONE_MODEL.value + ".urdf"
+        self.URDF = "cf2x" + ".urdf"
         #### Load the drone properties from the .urdf file #########
         self.M, \
         self.L, \

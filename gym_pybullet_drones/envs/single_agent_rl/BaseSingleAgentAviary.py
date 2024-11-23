@@ -2,7 +2,7 @@ import os
 from datetime import datetime
 from enum import Enum
 import numpy as np
-from gym import spaces
+from gymnasium import spaces
 import pybullet as p
 import pybullet_data
 

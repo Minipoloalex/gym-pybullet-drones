@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from gym import spaces
+from gymnasium import spaces
 import pybullet as p
 
 from gym_pybullet_drones.envs.BaseAviary import DroneModel, Physics, BaseAviary
