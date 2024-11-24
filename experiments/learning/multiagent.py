@@ -108,18 +108,18 @@ class CustomTorchCentralizedCriticModel(TorchModelV2, nn.Module):
         return torch.reshape(value_out, [-1])
 
 ############################################################
-class FillInActions(DefaultCallbacks):
-    def on_postprocess_trajectory(self, worker, episode, agent_id, policy_id, policies, postprocessed_batch, original_batches, **kwargs):
-        to_update = postprocessed_batch[SampleBatch.CUR_OBS]
-        other_id = 1 if agent_id == 0 else 0
-        action_encoder = ModelCatalog.get_preprocessor_for_space( 
-                                                                 # Box(-np.inf, np.inf, (ACTION_VEC_SIZE,), np.float32) # Unbounded
-                                                                 Box(-1, 1, (ACTION_VEC_SIZE,), np.float32) # Bounded
-                                                                 )
-        _, opponent_batch = original_batches[other_id]
-        # opponent_actions = np.array([action_encoder.transform(a) for a in opponent_batch[SampleBatch.ACTIONS]]) # Unbounded
-        opponent_actions = np.array([action_encoder.transform(np.clip(a, -1, 1)) for a in opponent_batch[SampleBatch.ACTIONS]]) # Bounded
-        to_update[:, -ACTION_VEC_SIZE:] = opponent_actions
+# class FillInActions(DefaultCallbacks):
+#     def on_postprocess_trajectory(self, worker, episode, agent_id, policy_id, policies, postprocessed_batch, original_batches, **kwargs):
+#         to_update = postprocessed_batch[SampleBatch.CUR_OBS]
+#         other_id = 1 if agent_id == 0 else 0
+#         action_encoder = ModelCatalog.get_preprocessor_for_space( 
+#                                                                  # Box(-np.inf, np.inf, (ACTION_VEC_SIZE,), np.float32) # Unbounded
+#                                                                  Box(-1, 1, (ACTION_VEC_SIZE,), np.float32) # Bounded
+#                                                                  )
+#         _, opponent_batch = original_batches[other_id]
+#         # opponent_actions = np.array([action_encoder.transform(a) for a in opponent_batch[SampleBatch.ACTIONS]]) # Unbounded
+#         opponent_actions = np.array([action_encoder.transform(np.clip(a, -1, 1)) for a in opponent_batch[SampleBatch.ACTIONS]]) # Bounded
+#         to_update[:, -ACTION_VEC_SIZE:] = opponent_actions
 
 ############################################################
 MIN_HEIGHT = 0.2 # TODO: fix me, I'm an hardcoded value wrongfully placed here!
@@ -128,23 +128,24 @@ def central_critic_observer(agent_obs, **kw):
     z_index = 2
     vz_index = 8
     
-    average_z = sum(map(lambda obs : obs[z_index], agent_obs.values())) / len(agent_obs)
-    target_z = max(MIN_HEIGHT, average_z)
+    # average_z = sum(map(lambda obs : obs[z_index], agent_obs.values())) / len(agent_obs)
+    # target_z = max(MIN_HEIGHT, average_z)
     
-    print(type(agent_obs), agent_obs[0].shape, target_z)
+    # print(type(agent_obs), agent_obs[0].shape, target_z)
     
     new_obs = {
+        # x: {"own_obs": agent_obs[x], "opponent_action": np.zeros(ACTION_VEC_SIZE)} for x in NUM_DRONES
         0: {
-            "self_obs": np.array([agent_obs[0][z_index], agent_obs[0][vz_index], target_z]),
+            # "self_obs": np.array([agent_obs[0][z_index], agent_obs[0][vz_index], target_z]),
             "own_obs": agent_obs[0],
-            "opponent_obs": agent_obs[1],
-            "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
+            # "opponent_obs": agent_obs[1],
+            # "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
         },
         1: {
-            "self_obs": np.array([agent_obs[1][z_index], agent_obs[1][vz_index], target_z]),
+            # "self_obs": np.array([agent_obs[1][z_index], agent_obs[1][vz_index], target_z]),
             "own_obs": agent_obs[1],
-            "opponent_obs": agent_obs[0],
-            "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
+            # "opponent_obs": agent_obs[0],
+            # "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
         },
     }
     return new_obs
@@ -155,7 +156,7 @@ if __name__ == "__main__":
     #### Define and parse (optional) arguments for the script ##
     parser = argparse.ArgumentParser(description='Multi-agent reinforcement learning experiments script')
     parser.add_argument('--num_drones',  default=2,                 type=int,                                                                 help='Number of drones (default: 2)', metavar='')
-    parser.add_argument('--env',         default='leaderfollower',  type=str,             choices=['leaderfollower', 'flock', 'meetup', 'meet_at_height'],      help='Help (default: ..)', metavar='')
+    parser.add_argument('--env',         default='meet_at_height',  type=str,             choices=['leaderfollower', 'flock', 'meetup', 'meet_at_height'],      help='Help (default: ..)', metavar='')
     parser.add_argument('--obs',         default='kin',             type=ObservationType,                                                     help='Help (default: ..)', metavar='')
     parser.add_argument('--act',         default='one_d_rpm',       type=ActionType,                                                          help='Help (default: ..)', metavar='')
     parser.add_argument('--algo',        default='cc',              type=str,             choices=['cc'],                                     help='Help (default: ..)', metavar='')
@@ -272,19 +273,20 @@ if __name__ == "__main__":
 
     # TODO: observer_space
     observer_space = Dict({
-        "self_obs": spaces.Box(low=np.array([0, -1, 0]), high=np.array([1, 1, 1]), dtype=np.float32),
+        # "self_obs": spaces.Box(low=np.array([0, -1, 0]), high=np.array([1, 1, 1]), dtype=np.float32),
         "own_obs": temp_env.observation_space[0],
-        "opponent_obs": temp_env.observation_space[0],
-        "opponent_action": temp_env.action_space[0],
+        # "opponent_obs": temp_env.observation_space[0],
+        # "opponent_action": temp_env.action_space[0],
     })
+    action_space = temp_env.action_space[0]
     print("----------------------------------------------------")
     print("----------------------------------------------------")
     print(temp_env.observation_space[0].shape)
-    print(observer_space["self_obs"].shape)
-    print(type(observer_space["self_obs"]))
+    # print(observer_space["self_obs"].shape)
+    # print(type(observer_space["self_obs"]))
+    print(action_space.shape)
     print("----------------------------------------------------")
     print("----------------------------------------------------")
-    action_space = temp_env.action_space[0]
 
     #### Note ##################################################
     # RLlib will create ``num_workers + 1`` copies of the
