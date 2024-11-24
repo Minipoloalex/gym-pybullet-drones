@@ -50,10 +50,13 @@ from gym_pybullet_drones.envs.BaseAviary import DroneModel, Physics
 from gym_pybullet_drones.envs.multi_agent_rl.FlockAviary import FlockAviary
 from gym_pybullet_drones.envs.multi_agent_rl.LeaderFollowerAviary import LeaderFollowerAviary
 from gym_pybullet_drones.envs.multi_agent_rl.MeetupAviary import MeetupAviary
+from gym_pybullet_drones.envs.multi_agent_rl.MeetAtHeightAviary import MeetAtHeightAviary
 from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType
 from gym_pybullet_drones.utils.Logger import Logger
 
 import shared_constants
+
+from pprint import pprint
 
 OWN_OBS_VEC_SIZE = None # Modified at runtime
 ACTION_VEC_SIZE = None # Modified at runtime
@@ -119,14 +122,26 @@ class FillInActions(DefaultCallbacks):
         to_update[:, -ACTION_VEC_SIZE:] = opponent_actions
 
 ############################################################
+MIN_HEIGHT = 0.2 # TODO: fix me, I'm an hardcoded value wrongfully placed here!
+NUM_DRONES = 2 # TODO: fix me, I'm an hardcoded value that should come from the values in the command line!
 def central_critic_observer(agent_obs, **kw):
+    z_index = 2
+    vz_index = 8
+    
+    average_z = sum(map(lambda obs : obs[z_index], agent_obs.values())) / len(agent_obs)
+    target_z = max(MIN_HEIGHT, average_z)
+    
+    print(type(agent_obs), agent_obs[0].shape, target_z)
+    
     new_obs = {
         0: {
+            "self_obs": np.array([agent_obs[0][z_index], agent_obs[0][vz_index], target_z]),
             "own_obs": agent_obs[0],
             "opponent_obs": agent_obs[1],
             "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
         },
         1: {
+            "self_obs": np.array([agent_obs[1][z_index], agent_obs[1][vz_index], target_z]),
             "own_obs": agent_obs[1],
             "opponent_obs": agent_obs[0],
             "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
@@ -140,7 +155,7 @@ if __name__ == "__main__":
     #### Define and parse (optional) arguments for the script ##
     parser = argparse.ArgumentParser(description='Multi-agent reinforcement learning experiments script')
     parser.add_argument('--num_drones',  default=2,                 type=int,                                                                 help='Number of drones (default: 2)', metavar='')
-    parser.add_argument('--env',         default='leaderfollower',  type=str,             choices=['leaderfollower', 'flock', 'meetup'],      help='Help (default: ..)', metavar='')
+    parser.add_argument('--env',         default='leaderfollower',  type=str,             choices=['leaderfollower', 'flock', 'meetup', 'meet_at_height'],      help='Help (default: ..)', metavar='')
     parser.add_argument('--obs',         default='kin',             type=ObservationType,                                                     help='Help (default: ..)', metavar='')
     parser.add_argument('--act',         default='one_d_rpm',       type=ActionType,                                                          help='Help (default: ..)', metavar='')
     parser.add_argument('--algo',        default='cc',              type=str,             choices=['cc'],                                     help='Help (default: ..)', metavar='')
@@ -176,6 +191,9 @@ if __name__ == "__main__":
         print("[ERROR] unknown ActionType")
         exit()
 
+    if ARGS.env == 'meet_at_height':
+        OWN_OBS_VEC_SIZE = 3
+
     #### Uncomment to debug slurm scripts ######################
     # exit()
 
@@ -209,6 +227,13 @@ if __name__ == "__main__":
                                                            act=ARGS.act
                                                            )
                      )
+    elif ARGS.env =='meet_at_height':
+        register_env(temp_env_name, lambda _: MeetAtHeightAviary(num_drones=ARGS.num_drones,
+                                                           aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
+                                                           obs=ARGS.obs,
+                                                           act=ARGS.act
+                                                           )
+                     )
     else:
         print("[ERROR] environment not yet implemented")
         exit()
@@ -232,14 +257,33 @@ if __name__ == "__main__":
                                 obs=ARGS.obs,
                                 act=ARGS.act
                                 )
+    elif ARGS.env == 'meet_at_height':
+        temp_env = MeetAtHeightAviary(num_drones=ARGS.num_drones,
+                                 aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
+                                 obs=ARGS.obs,
+                                 act=ARGS.act
+                                 )
     else:
         print("[ERROR] environment not yet implemented")
         exit()
+
+    # print("Printing observation space")
+    # OWN_OBS_VEC_SIZE = temp_env.observation_space[0].shape[0]
+
+    # TODO: observer_space
     observer_space = Dict({
+        "self_obs": spaces.Box(low=np.array([0, -1, 0]), high=np.array([1, 1, 1]), dtype=np.float32),
         "own_obs": temp_env.observation_space[0],
         "opponent_obs": temp_env.observation_space[0],
         "opponent_action": temp_env.action_space[0],
     })
+    print("----------------------------------------------------")
+    print("----------------------------------------------------")
+    print(temp_env.observation_space[0].shape)
+    print(observer_space["self_obs"].shape)
+    print(type(observer_space["self_obs"]))
+    print("----------------------------------------------------")
+    print("----------------------------------------------------")
     action_space = temp_env.action_space[0]
 
     #### Note ##################################################
@@ -256,7 +300,7 @@ if __name__ == "__main__":
         "num_workers": 0 + ARGS.workers,
         "num_gpus": int(os.environ.get("RLLIB_NUM_GPUS", "0")), # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0
         "batch_mode": "complete_episodes",
-        "callbacks": FillInActions,
+        # "callbacks": FillInActions,
         "framework": "torch",
     }
 
@@ -266,23 +310,27 @@ if __name__ == "__main__":
     }
     
     #### Set up the multiagent params of the trainer's config ##
+    # TODO: policies
     config["multiagent"] = { 
         "policies": {
-            "pol0": (None, observer_space, action_space, {"agent_id": 0,}),
-            "pol1": (None, observer_space, action_space, {"agent_id": 1,}),
+            "pol": (None, observer_space, action_space, {}),
+            # "pol0": (None, observer_space, action_space, {"agent_id": 0,}),
+            # "pol1": (None, observer_space, action_space, {"agent_id": 1,}),
         },
-        "policy_mapping_fn": lambda x: "pol0" if x == 0 else "pol1", # # Function mapping agent ids to policy ids
+        # "policy_mapping_fn": lambda x: "pol0" if x == 0 else "pol1", # # Function mapping agent ids to policy ids
+        "policy_mapping_fn": lambda x: "pol",
         "observation_fn": central_critic_observer, # See rllib/evaluation/observation_function.py for more info
     }
 
     #### Ray Tune stopping conditions ##########################
     stop = {
-        "timesteps_total": 120000, # 100000 ~= 10'
+        "timesteps_total": 1000,#120000, # 100000 ~= 10'
         # "episode_reward_mean": 0,
         # "training_iteration": 0,
     }
 
     #### Train #################################################
+    pprint(config)
     results = tune.run(
         "PPO",
         stop=stop,
@@ -294,11 +342,8 @@ if __name__ == "__main__":
     # check_learning_achieved(results, 1.0)
 
     #### Save agent ############################################
-    checkpoints = results.get_trial_checkpoints_paths(trial=results.get_best_trial('episode_reward_mean',
-                                                                                   mode='max'
-                                                                                   ),
-                                                      metric='episode_reward_mean'
-                                                      )
+    checkpoints = results.get_trial_checkpoints_paths(trial=results.get_best_trial('episode_reward_mean', mode='max'),
+                                                      metric='episode_reward_mean')
     with open(filename+'/checkpoint.txt', 'w+') as f:
         f.write(checkpoints[0][0])
 
