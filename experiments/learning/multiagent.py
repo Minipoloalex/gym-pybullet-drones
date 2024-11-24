@@ -135,18 +135,19 @@ def central_critic_observer(agent_obs, **kw):
     
     new_obs = {
         # x: {"own_obs": agent_obs[x], "opponent_action": np.zeros(ACTION_VEC_SIZE)} for x in NUM_DRONES
-        0: {
-            # "self_obs": np.array([agent_obs[0][z_index], agent_obs[0][vz_index], target_z]),
-            "own_obs": agent_obs[0],
-            # "opponent_obs": agent_obs[1],
-            # "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
-        },
-        1: {
-            # "self_obs": np.array([agent_obs[1][z_index], agent_obs[1][vz_index], target_z]),
-            "own_obs": agent_obs[1],
-            # "opponent_obs": agent_obs[0],
-            # "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
-        },
+        x: {"own_obs": agent_obs[x],} for x in range(NUM_DRONES)
+        # 0: {
+        #     # "self_obs": np.array([agent_obs[0][z_index], agent_obs[0][vz_index], target_z]),
+        #     "own_obs": agent_obs[0],
+        #     # "opponent_obs": agent_obs[1],
+        #     # "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
+        # },
+        # 1: {
+        #     # "self_obs": np.array([agent_obs[1][z_index], agent_obs[1][vz_index], target_z]),
+        #     "own_obs": agent_obs[1],
+        #     # "opponent_obs": agent_obs[0],
+        #     # "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
+        # },
     }
     return new_obs
 
@@ -155,12 +156,12 @@ if __name__ == "__main__":
 
     #### Define and parse (optional) arguments for the script ##
     parser = argparse.ArgumentParser(description='Multi-agent reinforcement learning experiments script')
-    parser.add_argument('--num_drones',  default=2,                 type=int,                                                                 help='Number of drones (default: 2)', metavar='')
-    parser.add_argument('--env',         default='meet_at_height',  type=str,             choices=['leaderfollower', 'flock', 'meetup', 'meet_at_height'],      help='Help (default: ..)', metavar='')
-    parser.add_argument('--obs',         default='kin',             type=ObservationType,                                                     help='Help (default: ..)', metavar='')
-    parser.add_argument('--act',         default='one_d_rpm',       type=ActionType,                                                          help='Help (default: ..)', metavar='')
-    parser.add_argument('--algo',        default='cc',              type=str,             choices=['cc'],                                     help='Help (default: ..)', metavar='')
-    parser.add_argument('--workers',     default=0,                 type=int,                                                                 help='Help (default: ..)', metavar='')        
+    parser.add_argument('--num_drones',  default=NUM_DRONES,        type=int,                                                                              help=f'Number of drones (default: {NUM_DRONES})', metavar='')
+    parser.add_argument('--env',         default='meet_at_height',  type=str,             choices=['leaderfollower', 'flock', 'meetup', 'meet_at_height'], help='Help (default: ..)', metavar='')
+    parser.add_argument('--obs',         default='kin',             type=ObservationType,                                                                  help='Help (default: ..)', metavar='')
+    parser.add_argument('--act',         default='one_d_rpm',       type=ActionType,                                                                       help='Help (default: ..)', metavar='')
+    parser.add_argument('--algo',        default='cc',              type=str,             choices=['cc'],                                                  help='Help (default: ..)', metavar='')
+    parser.add_argument('--workers',     default=0,                 type=int,                                                                              help='Help (default: ..)', metavar='')        
     ARGS = parser.parse_args()
 
     #### Save directory ########################################
