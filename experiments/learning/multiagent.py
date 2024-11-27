@@ -122,8 +122,7 @@ class CustomTorchCentralizedCriticModel(TorchModelV2, nn.Module):
 #         to_update[:, -ACTION_VEC_SIZE:] = opponent_actions
 
 ############################################################
-MIN_HEIGHT = 0.2 # TODO: fix me, I'm an hardcoded value wrongfully placed here!
-NUM_DRONES = 2 # TODO: fix me, I'm an hardcoded value that should come from the values in the command line!
+NUM_DRONES = 5 # TODO: fix me, I'm an hardcoded value that should come from the values in the command line!
 def central_critic_observer(agent_obs, **kw):
     z_index = 2
     vz_index = 8
@@ -311,7 +310,6 @@ if __name__ == "__main__":
     config["model"] = { 
         "custom_model": "cc_model",
     }
-    
     #### Set up the multiagent params of the trainer's config ##
     # TODO: policies
     config["multiagent"] = { 
@@ -327,7 +325,7 @@ if __name__ == "__main__":
 
     #### Ray Tune stopping conditions ##########################
     stop = {
-        "timesteps_total": 1000,#120000, # 100000 ~= 10'
+        "timesteps_total": 100000,#120000, # 100000 ~= 10'
         # "episode_reward_mean": 0,
         # "training_iteration": 0,
     }

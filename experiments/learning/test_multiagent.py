@@ -42,6 +42,7 @@ from gym_pybullet_drones.envs.BaseAviary import DroneModel, Physics
 from gym_pybullet_drones.envs.multi_agent_rl.FlockAviary import FlockAviary
 from gym_pybullet_drones.envs.multi_agent_rl.LeaderFollowerAviary import LeaderFollowerAviary
 from gym_pybullet_drones.envs.multi_agent_rl.MeetupAviary import MeetupAviary
+from gym_pybullet_drones.envs.multi_agent_rl.MeetAtHeightAviary import MeetAtHeightAviary
 from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType
 from gym_pybullet_drones.utils.Logger import Logger
 from gym_pybullet_drones.utils.utils import sync
@@ -93,32 +94,60 @@ class CustomTorchCentralizedCriticModel(TorchModelV2, nn.Module):
         return torch.reshape(value_out, [-1])
 
 ############################################################
-class FillInActions(DefaultCallbacks):
-    def on_postprocess_trajectory(self, worker, episode, agent_id, policy_id, policies, postprocessed_batch, original_batches, **kwargs):
-        to_update = postprocessed_batch[SampleBatch.CUR_OBS]
-        other_id = 1 if agent_id == 0 else 0
-        action_encoder = ModelCatalog.get_preprocessor_for_space( 
-                                                                 # Box(-np.inf, np.inf, (ACTION_VEC_SIZE,), np.float32) # Unbounded
-                                                                 Box(-1, 1, (ACTION_VEC_SIZE,), np.float32) # Bounded
-                                                                 )
-        _, opponent_batch = original_batches[other_id]
-        # opponent_actions = np.array([action_encoder.transform(a) for a in opponent_batch[SampleBatch.ACTIONS]]) # Unbounded
-        opponent_actions = np.array([action_encoder.transform(np.clip(a, -1, 1)) for a in opponent_batch[SampleBatch.ACTIONS]]) # Bounded
-        to_update[:, -ACTION_VEC_SIZE:] = opponent_actions
+# class FillInActions(DefaultCallbacks):
+#     def on_postprocess_trajectory(self, worker, episode, agent_id, policy_id, policies, postprocessed_batch, original_batches, **kwargs):
+#         to_update = postprocessed_batch[SampleBatch.CUR_OBS]
+#         other_id = 1 if agent_id == 0 else 0
+#         action_encoder = ModelCatalog.get_preprocessor_for_space( 
+#                                                                  # Box(-np.inf, np.inf, (ACTION_VEC_SIZE,), np.float32) # Unbounded
+#                                                                  Box(-1, 1, (ACTION_VEC_SIZE,), np.float32) # Bounded
+#                                                                  )
+#         _, opponent_batch = original_batches[other_id]
+#         # opponent_actions = np.array([action_encoder.transform(a) for a in opponent_batch[SampleBatch.ACTIONS]]) # Unbounded
+#         opponent_actions = np.array([action_encoder.transform(np.clip(a, -1, 1)) for a in opponent_batch[SampleBatch.ACTIONS]]) # Bounded
+#         to_update[:, -ACTION_VEC_SIZE:] = opponent_actions
 
 ############################################################
+# def central_critic_observer(agent_obs, **kw):
+#     new_obs = {
+#         0: {
+#             "own_obs": agent_obs[0],
+#             "opponent_obs": agent_obs[1],
+#             "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
+#         },
+#         1: {
+#             "own_obs": agent_obs[1],
+#             "opponent_obs": agent_obs[0],
+#             "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
+#         },
+#     }
+#     return new_obs
+############################################################
+
 def central_critic_observer(agent_obs, **kw):
+    z_index = 2
+    vz_index = 8
+    
+    # average_z = sum(map(lambda obs : obs[z_index], agent_obs.values())) / len(agent_obs)
+    # target_z = max(MIN_HEIGHT, average_z)
+    
+    # print(type(agent_obs), agent_obs[0].shape, target_z)
+    
     new_obs = {
-        0: {
-            "own_obs": agent_obs[0],
-            "opponent_obs": agent_obs[1],
-            "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
-        },
-        1: {
-            "own_obs": agent_obs[1],
-            "opponent_obs": agent_obs[0],
-            "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
-        },
+        # x: {"own_obs": agent_obs[x], "opponent_action": np.zeros(ACTION_VEC_SIZE)} for x in NUM_DRONES
+        x: {"own_obs": agent_obs[x],} for x in range(NUM_DRONES)
+        # 0: {
+        #     # "self_obs": np.array([agent_obs[0][z_index], agent_obs[0][vz_index], target_z]),
+        #     "own_obs": agent_obs[0],
+        #     # "opponent_obs": agent_obs[1],
+        #     # "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
+        # },
+        # 1: {
+        #     # "self_obs": np.array([agent_obs[1][z_index], agent_obs[1][vz_index], target_z]),
+        #     "own_obs": agent_obs[1],
+        #     # "opponent_obs": agent_obs[0],
+        #     # "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
+        # },
     }
     return new_obs
 
@@ -128,6 +157,7 @@ if __name__ == "__main__":
     #### Define and parse (optional) arguments for the script ##
     parser = argparse.ArgumentParser(description='Multi-agent reinforcement learning experiments script')
     parser.add_argument('--exp',    type=str,       help='Help (default: ..)', metavar='')
+    parser.add_argument('--record',  default=False,  type=bool,  help='Record or not (?)', metavar='')
     ARGS = parser.parse_args()
 
     #### Parameters to recreate the environment ################
@@ -167,6 +197,11 @@ if __name__ == "__main__":
         print("[ERROR] unknown ActionType")
         exit()
 
+    env_name = ARGS.exp.split("-")[1]
+    if env_name == 'meet_at_height':
+        OWN_OBS_VEC_SIZE = 3
+
+
     #### Initialize Ray Tune ###################################
     ray.shutdown()
     ray.init(ignore_reinit_error=True)
@@ -197,6 +232,13 @@ if __name__ == "__main__":
                                                            act=ACT
                                                            )
                      )
+    elif ARGS.exp.split("-")[1] == 'meet_at_height':
+        register_env(temp_env_name, lambda _: MeetAtHeightAviary(num_drones=NUM_DRONES,
+                                                           aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
+                                                           obs=OBS,
+                                                           act=ACT
+                                                           )
+                     ) 
     else:
         print("[ERROR] environment not yet implemented")
         exit()
@@ -220,13 +262,19 @@ if __name__ == "__main__":
                                 obs=OBS,
                                 act=ACT
                                 )
+    elif ARGS.exp.split("-")[1] == 'meet_at_height':
+        temp_env = MeetAtHeightAviary(num_drones=NUM_DRONES,
+                                aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
+                                obs=OBS,
+                                act=ACT
+                                ) 
     else:
         print("[ERROR] environment not yet implemented")
         exit()
     observer_space = Dict({
         "own_obs": temp_env.observation_space[0],
-        "opponent_obs": temp_env.observation_space[0],
-        "opponent_action": temp_env.action_space[0],
+        # "opponent_obs": temp_env.observation_space[0],
+        # "opponent_action": temp_env.action_space[0],
     })
     action_space = temp_env.action_space[0]
 
@@ -237,7 +285,7 @@ if __name__ == "__main__":
         "num_workers": 0, #0+ARGS.workers,
         "num_gpus": int(os.environ.get("RLLIB_NUM_GPUS", "0")), # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0
         "batch_mode": "complete_episodes",
-        "callbacks": FillInActions,
+        # "callbacks": FillInActions,
         "framework": "torch",
     }
 
@@ -247,12 +295,26 @@ if __name__ == "__main__":
     }
     
     #### Set up the multiagent params of the trainer's config ##
+    # config["multiagent"] = {
+    #     "policies": {
+    #         f"pol{x}": (None, observer_space, action_space, {"agent_id": x,})
+    #         for x in range(NUM_DRONES)
+    #     },
+    #     # "policies": {
+    #     #     "pol0": (None, observer_space, action_space, {"agent_id": 0,}),
+    #     #     "pol1": (None, observer_space, action_space, {"agent_id": 1,}),
+    #     # },
+    #     "policy_mapping_fn": lambda x: f"pol{x}", # Function mapping agent ids to policy ids
+    #     "observation_fn": central_critic_observer, # See rllib/evaluation/observation_function.py for more info
+    # }
     config["multiagent"] = { 
         "policies": {
-            "pol0": (None, observer_space, action_space, {"agent_id": 0,}),
-            "pol1": (None, observer_space, action_space, {"agent_id": 1,}),
+            "pol": (None, observer_space, action_space, {}),
+            # "pol0": (None, observer_space, action_space, {"agent_id": 0,}),
+            # "pol1": (None, observer_space, action_space, {"agent_id": 1,}),
         },
-        "policy_mapping_fn": lambda x: "pol0" if x == 0 else "pol1", # # Function mapping agent ids to policy ids
+        # "policy_mapping_fn": lambda x: "pol0" if x == 0 else "pol1", # # Function mapping agent ids to policy ids
+        "policy_mapping_fn": lambda x: "pol",
         "observation_fn": central_critic_observer, # See rllib/evaluation/observation_function.py for more info
     }
 
@@ -263,12 +325,13 @@ if __name__ == "__main__":
     agent.restore(checkpoint)
 
     #### Extract and print policies ############################
-    policy0 = agent.get_policy("pol0")
-    print("action model 0", policy0.model.action_model)
-    print("value model 0", policy0.model.value_model)
-    policy1 = agent.get_policy("pol1")
-    print("action model 1", policy1.model.action_model)
-    print("value model 1", policy1.model.value_model)
+    # policy0 = agent.get_policy("pol0")
+    # print("action model 0", policy0.model.action_model)
+    # print("value model 0", policy0.model.value_model)
+    # policy1 = agent.get_policy("pol1")
+    # print("action model 1", policy1.model.action_model)
+    # print("value model 1", policy1.model.value_model)
+    policy = agent.get_policy("pol")
 
     #### Create test environment ###############################
     if ARGS.exp.split("-")[1] == 'flock':
@@ -277,7 +340,7 @@ if __name__ == "__main__":
                                obs=OBS,
                                act=ACT,
                                gui=True,
-                               record=False
+                               record=ARGS.record
                                )
     elif ARGS.exp.split("-")[1] == 'leaderfollower':
         test_env = LeaderFollowerAviary(num_drones=NUM_DRONES,
@@ -285,7 +348,7 @@ if __name__ == "__main__":
                                         obs=OBS,
                                         act=ACT,
                                         gui=True,
-                                        record=False
+                                        record=ARGS.record
                                         )
     elif ARGS.exp.split("-")[1] == 'meetup':
         test_env = MeetupAviary(num_drones=NUM_DRONES,
@@ -293,12 +356,22 @@ if __name__ == "__main__":
                                 obs=OBS,
                                 act=ACT,
                                 gui=True,
-                                record=True
+                                record=ARGS.record
                                 )
+    elif ARGS.exp.split("-")[1] == 'meet_at_height':
+        print("Creating test environment")
+        test_env = MeetAtHeightAviary(num_drones=NUM_DRONES,
+                                aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
+                                obs=OBS,
+                                act=ACT,
+                                gui=False,
+                                record=ARGS.record
+                                )
+        print("Finished creating test environment")
     else:
         print("[ERROR] environment not yet implemented")
         exit()
-    
+
     #### Show, record a video, and log the model's performance #
     obs = test_env.reset()
     logger = Logger(logging_freq_hz=int(test_env.SIM_FREQ/test_env.AGGR_PHY_STEPS),
@@ -314,21 +387,37 @@ if __name__ == "__main__":
         print("[ERROR] unknown ActionType")
         exit()
     start = time.time()
+
     for i in range(6*int(test_env.SIM_FREQ/test_env.AGGR_PHY_STEPS)): # Up to 6''
         #### Deploy the policies ###################################
+        # temp = {}
+        # temp[0] = policy0.compute_single_action(np.hstack([action[1], obs[1], obs[0]])) # Counterintuitive order, check params.json
+        # temp[1] = policy1.compute_single_action(np.hstack([action[0], obs[0], obs[1]]))
+        # action = {0: temp[0][0], 1: temp[1][0]}
+
         temp = {}
-        temp[0] = policy0.compute_single_action(np.hstack([action[1], obs[1], obs[0]])) # Counterintuitive order, check params.json
-        temp[1] = policy1.compute_single_action(np.hstack([action[0], obs[0], obs[1]]))
-        action = {0: temp[0][0], 1: temp[1][0]}
+        for i in range(NUM_DRONES):
+            # Only need the drone's own observations
+            # Will still keep consistency with previous implementation where more things were needed
+            temp[i] = policy.compute_single_action(np.hstack([obs[i]]))
+
+        action = {i: temp[i][0] for i in range(NUM_DRONES)} # Select best action (action 0) among the actions from the policy
+
         obs, reward, done, info = test_env.step(action)
         test_env.render()
-        if OBS==ObservationType.KIN: 
+        # print("Observation")
+        # print(obs)
+        print("Action")
+        print()
+        if OBS==ObservationType.KIN:
             for j in range(NUM_DRONES):
+                others = np.zeros(15 - 3) if env_name == "meet_at_height" else obs[j][3:15]
                 logger.log(drone=j,
                            timestamp=i/test_env.SIM_FREQ,
-                           state= np.hstack([obs[j][0:3], np.zeros(4), obs[j][3:15], np.resize(action[j], (4))]),
+                           state= np.hstack([obs[j][0:3], np.zeros(4), others, np.resize(action[j], (4))]),
                            control=np.zeros(12)
                            )
+                pass
         sync(np.floor(i*test_env.AGGR_PHY_STEPS), start, test_env.TIMESTEP)
         # if done["__all__"]: obs = test_env.reset() # OPTIONAL EPISODE HALT
     test_env.close()
