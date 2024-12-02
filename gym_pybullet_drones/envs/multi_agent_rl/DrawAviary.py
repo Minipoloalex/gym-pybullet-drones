@@ -63,11 +63,13 @@ class FigureAviary(BaseMultiagentAviary):
             The type of action space (1 or 3D; RPMS, thurst and torques, or waypoint with PID control)
 
         """
-        possible_heights = np.linspace( 0.1, 0.5)
+        possible_z = np.linspace( 0.1, 0.5)
+        possible_y = np.linspace(-0.5, 0.5)
         if initial_xyzs is None:
-            xs = np.array([0.2*x for x in range(num_drones)])
-            ys = np.array([0 for x in range(num_drones)])
-            zs = np.random.choice(possible_heights, num_drones)
+            start_x = - 0.1 * (num_drones - 1)
+            xs = np.array([start_x + 0.2*x for x in range(num_drones)])
+            ys = np.random.choice(possible_y, num_drones)
+            zs = np.random.choice(possible_z, num_drones)
             initial_xyzs = np.vstack([xs, ys, zs]).transpose().reshape(num_drones, 3)
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,
@@ -85,7 +87,11 @@ class FigureAviary(BaseMultiagentAviary):
 
         # Calculate Targets (should be sufficiently far away from each other)
         self.MIN_DISTANCE = 0.1
-        self.TARGET = [[0, 0, 0] for i in range(self.NUM_DRONES)]
+        alpha = 2 * math.pi / self.NUM_DRONES
+        r = self.MIN_DISTANCE
+        z = 0.4
+        self.TARGET = [self._clipAndNormalizeTarget([r * math.cos(alpha * i), r * math.sin(alpha * i), z])
+                       for i in range(self.NUM_DRONES)]
 
     ################################################################################
 
@@ -105,13 +111,19 @@ class FigureAviary(BaseMultiagentAviary):
         for i in range(self.NUM_DRONES):
             for j in range(i):
                 if i != j:
-                    distance = calculate_distance(states_raw[i, 0:3], states_raw[j, 0:3])
-                    distances[i, j] = distance
-                    distances[j, i] = distance
+                    d = calculate_distance(states_raw[i, 0:3], states_raw[j, 0:3])
+                    distances[i, j] = d
+                    distances[j, i] = d
             distances[i, i] = calculate_distance(states_raw[i, 0:3], self.TARGET[i])
 
         for i in range(self.NUM_DRONES):
-            rewards[i] = -1 * distances[i, i] + 0 # TODO: do not forget that the main goal is to reach the target!!
+            # The main goal is to reach the target
+            reward = -1 * distances[i, j] * self.NUM_DRONES
+            # The secondary goal is to avoid collisions
+            for j in range(self.NUM_DRONES):
+                if i != j:
+                    reward += min(distances[i,j] - self.MIN_DISTANCE, 0) * (1 / self.MIN_DISTANCE)
+            rewards[i] = reward
         return rewards
 
     ################################################################################
@@ -235,6 +247,13 @@ class FigureAviary(BaseMultiagentAviary):
 
     ################################################################################
 
+    def _clipAndNormalizeDistance(self, distance):
+        clipped_distance = np.clip(distance, 0, self.MIN_DISTANCE * 2)
+        normalized_distance = clipped_distance / (self.MIN_DISTANCE * 2)
+        return normalized_distance
+
+    ################################################################################
+
     def _clipAndNormalizeStateWarning(self,
                                       state,
                                       clipped_pos_xy,
@@ -282,7 +301,7 @@ class FigureAviary(BaseMultiagentAviary):
             v_boundary   = [-1, 1]
             rpy_boundary = [-1, 1]
             w_boundary   = [-1, 1]
-            d_boundary   = [0, 1.5]
+            d_boundary   = [ 0, 1]
             u_boundary   = [ 0, 1]
             
             low_boundaries = []
@@ -321,7 +340,7 @@ class FigureAviary(BaseMultiagentAviary):
             print("[ERROR] in FigureAviary._computeObs()")
             raise NotImplementedError()
 
-        elif self.OBS_TYPE == ObservationType.KIN: 
+        elif self.OBS_TYPE == ObservationType.KIN:
             ############################################################
             #### OBS SPACE OF SIZE = 15 + 4 * (NUM_DRONES - 1)
             # x y z vx vy vz r p y wx wy wz tx ty tz [d ux uy uz]+
@@ -347,15 +366,15 @@ class FigureAviary(BaseMultiagentAviary):
 
             for i in range(self.NUM_DRONES):
                 others = [
-                    # TODO: should I just use MIN_DISTANCE to set the distance as enough (clipped?), close or not enough instead of having just a simple distance?
-                    [distances[i, j], unit_vectors[i, j][0], unit_vectors[i, j][1], unit_vectors[i, j][2]]
+                    [self._clipAndNormalizeDistance(distances[i, j]),
+                     unit_vectors[i, j][0], unit_vectors[i, j][1], unit_vectors[i, j][2]]
                     for j in range(self.NUM_DRONES) if i != j
                 ]
                 obs[i, :] = np.hstack([states[i,  0: 3], # x y z
                                        states[i, 10:13], # vx vy vz
                                        states[i,  7:10], # r p y
                                        states[i, 13:16], # wx wy wz
-                                       self.TARGET[i], # tx ty tz
+                                       self.TARGET[i]  , # tx ty tz
                                        np.hstack(others) # [d ux uy uz]+
                                       ])
 
@@ -371,5 +390,5 @@ def calculate_distance(pos1, pos2):
 
 from math import sqrt
 x = FigureAviary()
-x._computeObs()
-
+y = x._computeReward()
+print(y)
