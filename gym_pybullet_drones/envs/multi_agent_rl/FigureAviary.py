@@ -298,21 +298,22 @@ class FigureAviary(BaseMultiagentAviary):
             ############################################################
             #### OBS SPACE OF SIZE = 15 + 4 * (NUM_DRONES - 1)
             # x y z vx vy vz r p y wx wy wz tx ty tz [d ux uy uz]+
-            xyz_boundary = [ 0, 1]
+            xy_boundary  = [-1, 1]
+            z_boundary   = [ 0, 1]
             v_boundary   = [-1, 1]
             rpy_boundary = [-1, 1]
             w_boundary   = [-1, 1]
             d_boundary   = [ 0, 1]
-            u_boundary   = [ 0, 1]
+            u_boundary   = [-1, 1]
             
             low_boundaries = []
             high_boundaries = []
             for i, boundaries in enumerate([low_boundaries, high_boundaries]):
-                boundaries += [xyz_boundary[i], xyz_boundary[i], xyz_boundary[i],
+                boundaries += [xy_boundary [i], xy_boundary [i], z_boundary  [i],
                                v_boundary  [i], v_boundary  [i], v_boundary  [i],
                                rpy_boundary[i], rpy_boundary[i], rpy_boundary[i],
                                w_boundary  [i], w_boundary  [i], w_boundary  [i],
-                               xyz_boundary[i], xyz_boundary[i], xyz_boundary[i]]
+                               u_boundary  [i], u_boundary  [i], u_boundary  [i]]
                 for _ in range(1, self.NUM_DRONES):
                     boundaries += [d_boundary[i],
                                    u_boundary[i], u_boundary[i], u_boundary[i]]
@@ -387,9 +388,4 @@ class FigureAviary(BaseMultiagentAviary):
     ################################################################################
 
 def calculate_distance(pos1, pos2):
-    return sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2 + (pos1[2] - pos2[2])**2)
-
-from math import sqrt
-x = FigureAviary()
-y = x._computeReward()
-print(y)
+    return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2 + (pos1[2] - pos2[2])**2)
