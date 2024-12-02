@@ -13,8 +13,8 @@ from gym_pybullet_drones.envs.multi_agent_rl.BaseMultiagentAviary import BaseMul
 def log(msg):
     print("Logging stuff: ", msg)
 
-class MeetAtHeightAviary(BaseMultiagentAviary):
-    """Multi-agent RL problem: meet at height."""
+class FigureAviary(BaseMultiagentAviary):
+    """Multi-agent RL problem: draw a simple figure."""
 
     ################################################################################
 
@@ -63,11 +63,11 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
             The type of action space (1 or 3D; RPMS, thurst and torques, or waypoint with PID control)
 
         """
-        possible_height = np.linspace(0.1, 0.5)
+        possible_heights = np.linspace( 0.1, 0.5)
         if initial_xyzs is None:
             xs = np.array([0.2*x for x in range(num_drones)])
-            ys = np.array([0 for _ in range(num_drones)])
-            zs = np.random.choice(possible_height, num_drones)
+            ys = np.array([0 for x in range(num_drones)])
+            zs = np.random.choice(possible_heights, num_drones)
             initial_xyzs = np.vstack([xs, ys, zs]).transpose().reshape(num_drones, 3)
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,
@@ -82,7 +82,10 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
                          obs=obs,
                          act=act
                          )
-        self.MIN_HEIGHT = 0.2
+
+        # Calculate Targets (should be sufficiently far away from each other)
+        self.MIN_DISTANCE = 0.1
+        self.TARGET = [[0, 0, 0] for i in range(self.NUM_DRONES)]
 
     ################################################################################
 
@@ -93,21 +96,22 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
         -------
         dict[int, float]
             The reward value for each drone.
-
         """
+
         rewards = {}
-        states = np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
+        states_raw = np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
+
+        distances = np.zeros((self.NUM_DRONES, self.NUM_DRONES))
+        for i in range(self.NUM_DRONES):
+            for j in range(i):
+                if i != j:
+                    distance = calculate_distance(states_raw[i, 0:3], states_raw[j, 0:3])
+                    distances[i, j] = distance
+                    distances[j, i] = distance
+            distances[i, i] = calculate_distance(states_raw[i, 0:3], self.TARGET[i])
 
         for i in range(self.NUM_DRONES):
-            average_z = np.mean(states[:, 2])
-            average_z = max(self.MIN_HEIGHT, average_z)
-            rewards[i] = -1 * (average_z - states[i, 2])**2
-            # rewards[i] = -1 * np.linalg.norm(np.array([states[i, 0], states[i, 1], 0.5]) - states[i, 0:3])**2
-        # rewards[0] = -1 * np.linalg.norm(np.array([0, 0, 0.5]) - states[0, 0:3])**2
-        # # rewards[1] = -1 * np.linalg.norm(np.array([states[1, 0], states[1, 1], 0.5]) - states[1, 0:3])**2 # DEBUG WITH INDEPENDENT REWARD
-        # for i in range(1, self.NUM_DRONES):
-        #     rewards[i] = -(1/self.NUM_DRONES) * np.linalg.norm(np.array([states[i, 0], states[i, 1], states[0, 2]]) - states[i, 0:3])**2
-        # return rewards
+            rewards[i] = -1 * distances[i, i] + 0 # TODO: do not forget that the main goal is to reach the target!!
         return rewards
 
     ################################################################################
@@ -205,7 +209,32 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
         return norm_and_clipped
 
     ################################################################################
-    
+
+    def _clipAndNormalizeTarget(self, target):
+        """Normalizes a drone's target to the [-1,1] range."""
+        MAX_LIN_VEL_XY = 3 
+        MAX_LIN_VEL_Z = 1
+
+        MAX_XY = MAX_LIN_VEL_XY*self.EPISODE_LEN_SEC
+        MAX_Z = MAX_LIN_VEL_Z*self.EPISODE_LEN_SEC
+
+        clipped_target_xy = np.clip(target[0:2], -MAX_XY, MAX_XY)
+        clipped_target_z = np.clip(target[2], 0, MAX_Z)
+
+        if self.GUI:
+            if not(clipped_target_xy == np.array(target[0:2])).all():
+                print("[WARNING] init in FigureAviary._clipAndNormalizeTarget(), clipped xy target position [{:.2f} {:.2f}]".format(target[0], target[1]))
+            if not(clipped_target_z == np.array(target[2])).all():
+                print("[WARNING] init in FigureAviary._clipAndNormalizeTarget(), clipped z target position [{:.2f}]".format(target[2]))
+
+        normalized_target_xy = clipped_target_xy / MAX_XY
+        normalized_target_z = clipped_target_z / MAX_Z
+
+        norm_and_clipped = np.hstack([normalized_target_xy, normalized_target_z]).reshape(3,)
+        return norm_and_clipped
+
+    ################################################################################
+
     def _clipAndNormalizeStateWarning(self,
                                       state,
                                       clipped_pos_xy,
@@ -220,15 +249,17 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
         
         """
         if not(clipped_pos_xy == np.array(state[0:2])).all():
-            print("[WARNING] it", self.step_counter, "in LeaderFollowerAviary._clipAndNormalizeState(), clipped xy position [{:.2f} {:.2f}]".format(state[0], state[1]))
+            print("[WARNING] it", self.step_counter, "in FigureAviary._clipAndNormalizeState(), clipped xy position [{:.2f} {:.2f}]".format(state[0], state[1]))
         if not(clipped_pos_z == np.array(state[2])).all():
-            print("[WARNING] it", self.step_counter, "in LeaderFollowerAviary._clipAndNormalizeState(), clipped z position [{:.2f}]".format(state[2]))
+            print("[WARNING] it", self.step_counter, "in FigureAviary._clipAndNormalizeState(), clipped z position [{:.2f}]".format(state[2]))
         if not(clipped_rp == np.array(state[7:9])).all():
-            print("[WARNING] it", self.step_counter, "in LeaderFollowerAviary._clipAndNormalizeState(), clipped roll/pitch [{:.2f} {:.2f}]".format(state[7], state[8]))
+            print("[WARNING] it", self.step_counter, "in FigureAviary._clipAndNormalizeState(), clipped roll/pitch [{:.2f} {:.2f}]".format(state[7], state[8]))
         if not(clipped_vel_xy == np.array(state[10:12])).all():
-            print("[WARNING] it", self.step_counter, "in LeaderFollowerAviary._clipAndNormalizeState(), clipped xy velocity [{:.2f} {:.2f}]".format(state[10], state[11]))
+            print("[WARNING] it", self.step_counter, "in FigureAviary._clipAndNormalizeState(), clipped xy velocity [{:.2f} {:.2f}]".format(state[10], state[11]))
         if not(clipped_vel_z == np.array(state[12])).all():
-            print("[WARNING] it", self.step_counter, "in LeaderFollowerAviary._clipAndNormalizeState(), clipped z velocity [{:.2f}]".format(state[12]))
+            print("[WARNING] it", self.step_counter, "in FigureAviary._clipAndNormalizeState(), clipped z velocity [{:.2f}]".format(state[12]))
+
+    ################################################################################
 
     def _observationSpace(self):
         """Returns the observation space of the environment.
@@ -237,29 +268,42 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
         -------
         dict[int, ndarray]
             A Dict with NUM_DRONES entries indexed by Id in integer format,
-            each a Box() os shape (H,W,4) or (12,) depending on the observation type.
+            each a Box() of shape (15 + 4*(NUM_DRONES - 1),).
 
         """
         if self.OBS_TYPE == ObservationType.RGB:
-            print("[ERROR] in BaseMultiagentAviary._observationSpace()")
+            print("[ERROR] in FigureAviary._observationSpace()")
             raise NotImplementedError()
         elif self.OBS_TYPE == ObservationType.KIN:
             ############################################################
-            #### OBS OF SIZE 20 (WITH QUATERNION AND RPMS)
-            #### Observation vector ### X        Y        Z       Q1   Q2   Q3   Q4   R       P       Y       VX       VY       VZ       WX       WY       WZ       P0            P1            P2            P3
-            # obs_lower_bound = np.array([-1,      -1,      0,      -1,  -1,  -1,  -1,  -1,     -1,     -1,     -1,      -1,      -1,      -1,      -1,      -1,      -1,           -1,           -1,           -1])
-            # obs_upper_bound = np.array([1,       1,       1,      1,   1,   1,   1,   1,      1,      1,      1,       1,       1,       1,       1,       1,       1,            1,            1,            1])          
-            # return spaces.Box( low=obs_lower_bound, high=obs_upper_bound, dtype=np.float32 )
-            ############################################################
-            #### OBS SPACE OF SIZE 12
-            # [z, vz, avg_height_z]
-            return spaces.Dict({i: spaces.Box(low=np.array([0, -1, 0]),
-                                              high=np.array([1, 1, 1]),
-                                              dtype=np.float32
-                                              ) for i in range(self.NUM_DRONES)})
+            #### OBS SPACE OF SIZE = 15 + 4 * (NUM_DRONES - 1)
+            # x y z vx vy vz r p y wx wy wz tx ty tz [d ux uy uz]+
+            xyz_boundary = [ 0, 1]
+            v_boundary   = [-1, 1]
+            rpy_boundary = [-1, 1]
+            w_boundary   = [-1, 1]
+            d_boundary   = [0, 1.5]
+            u_boundary   = [ 0, 1]
+            
+            low_boundaries = []
+            high_boundaries = []
+            for i, boundaries in enumerate([low_boundaries, high_boundaries]):
+                boundaries += [xyz_boundary[i], xyz_boundary[i], xyz_boundary[i],
+                               v_boundary  [i], v_boundary  [i], v_boundary  [i],
+                               rpy_boundary[i], rpy_boundary[i], rpy_boundary[i],
+                               w_boundary  [i], w_boundary  [i], w_boundary  [i],
+                               xyz_boundary[i], xyz_boundary[i], xyz_boundary[i]]
+                for _ in range(1, self.NUM_DRONES):
+                    boundaries += [d_boundary[i],
+                                   u_boundary[i], u_boundary[i], u_boundary[i]]
+
+            return spaces.Dict({ i: spaces.Box(
+                low=np.array(low_boundaries),
+                high=np.array(high_boundaries),
+                dtype=np.float32) for i in range(self.NUM_DRONES) })
             ############################################################
         else:
-            print("[ERROR] in BaseMultiagentAviary._observationSpace()")
+            print("[ERROR] in FigureAviary._observationSpace()")
 
     ################################################################################
 
@@ -270,29 +314,62 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
         -------
         dict[int, ndarray]
             A Dict with NUM_DRONES entries indexed by Id in integer format,
-            each a Box() os shape (H,W,4) or (12,) depending on the observation type.
+            each a Box() of shape (15 + 4*(NUM_DRONES - 1),).
 
         """
         if self.OBS_TYPE == ObservationType.RGB:
-            print("[ERROR] in BaseMultiagentAviary._computeObs()")
+            print("[ERROR] in FigureAviary._computeObs()")
             raise NotImplementedError()
 
         elif self.OBS_TYPE == ObservationType.KIN: 
             ############################################################
-            #### OBS OF SIZE 20 (WITH QUATERNION AND RPMS)
-            # return {   i   : self._clipAndNormalizeState(self._getDroneStateVector(i)) for i in range(self.NUM_DRONES) }
-            ############################################################
-            #### OBS SPACE OF SIZE 12
-            obs_3 = np.zeros((self.NUM_DRONES, 3))
+            #### OBS SPACE OF SIZE = 15 + 4 * (NUM_DRONES - 1)
+            # x y z vx vy vz r p y wx wy wz tx ty tz [d ux uy uz]+
 
+            obs = np.zeros((self.NUM_DRONES, 15 + 4 * (self.NUM_DRONES - 1)))
+            
+            states_raw = np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
             states = np.array([self._clipAndNormalizeState(self._getDroneStateVector(i)) for i in range(self.NUM_DRONES)])
-            # log(f"states: {states}")
-            # print("HELLOOOOOOO")
-            average_z = np.mean(states[:, 2])
-            for i in range(self.NUM_DRONES):                
-                obs = self._clipAndNormalizeState(self._getDroneStateVector(i))
-                obs_3[i, :] = np.hstack([obs[2], obs[12], average_z]).reshape(3,)
-            return {i: obs_3[i, :] for i in range(self.NUM_DRONES)}
+            
+            distances = np.zeros((self.NUM_DRONES, self.NUM_DRONES))
+            unit_vectors = np.zeros((self.NUM_DRONES, self.NUM_DRONES, 3))
+            for i in range(self.NUM_DRONES):
+                for j in range(i):
+                    if i != j:
+                        distance = calculate_distance(states_raw[i, 0:3], states_raw[j, 0:3])
+                        unit_vector = [(states_raw[j, 0] - states_raw[i, 0]) / distance,
+                                       (states_raw[j, 1] - states_raw[i, 1]) / distance,
+                                       (states_raw[j, 2] - states_raw[i, 2]) / distance]
+                        distances[i, j] = distance
+                        distances[j, i] = distance
+                        unit_vectors[i, j, :] = np.array(unit_vector)
+                        unit_vectors[j, i, :] = np.array([-u for u in unit_vector])
+
+            for i in range(self.NUM_DRONES):
+                others = [
+                    # TODO: should I just use MIN_DISTANCE to set the distance as enough (clipped?), close or not enough instead of having just a simple distance?
+                    [distances[i, j], unit_vectors[i, j][0], unit_vectors[i, j][1], unit_vectors[i, j][2]]
+                    for j in range(self.NUM_DRONES) if i != j
+                ]
+                obs[i, :] = np.hstack([states[i,  0: 3], # x y z
+                                       states[i, 10:13], # vx vy vz
+                                       states[i,  7:10], # r p y
+                                       states[i, 13:16], # wx wy wz
+                                       self.TARGET[i], # tx ty tz
+                                       np.hstack(others) # [d ux uy uz]+
+                                      ])
+
+            return {i: obs[i, :] for i in range(self.NUM_DRONES)}
             ############################################################
         else:
-            print("[ERROR] in BaseMultiagentAviary._computeObs()")
+            print("[ERROR] in FigureAviary._computeObs()")
+
+    ################################################################################
+
+def calculate_distance(pos1, pos2):
+    return sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2 + (pos1[2] - pos2[2])**2)
+
+from math import sqrt
+x = FigureAviary()
+x._computeObs()
+
