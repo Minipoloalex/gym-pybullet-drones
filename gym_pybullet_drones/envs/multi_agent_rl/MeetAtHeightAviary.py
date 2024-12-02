@@ -83,6 +83,7 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
                          act=act
                          )
         self.MIN_HEIGHT = 0.2
+        self.OWN_OBS_VEC_SIZE = 3
 
     ################################################################################
 

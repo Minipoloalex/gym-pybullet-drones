@@ -92,6 +92,7 @@ class FigureAviary(BaseMultiagentAviary):
         z = 0.4
         self.TARGET = [self._clipAndNormalizeTarget([r * math.cos(alpha * i), r * math.sin(alpha * i), z])
                        for i in range(self.NUM_DRONES)]
+        self.OWN_OBS_VEC_SIZE = 15 + 4 * (self.NUM_DRONES - 1)
 
     ################################################################################
 

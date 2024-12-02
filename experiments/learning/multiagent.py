@@ -50,6 +50,7 @@ from gym_pybullet_drones.envs.BaseAviary import DroneModel, Physics
 from gym_pybullet_drones.envs.multi_agent_rl.FlockAviary import FlockAviary
 from gym_pybullet_drones.envs.multi_agent_rl.LeaderFollowerAviary import LeaderFollowerAviary
 from gym_pybullet_drones.envs.multi_agent_rl.MeetupAviary import MeetupAviary
+from gym_pybullet_drones.envs.multi_agent_rl.FigureAviary import FigureAviary
 from gym_pybullet_drones.envs.multi_agent_rl.MeetAtHeightAviary import MeetAtHeightAviary
 from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType
 from gym_pybullet_drones.utils.Logger import Logger
@@ -155,12 +156,12 @@ if __name__ == "__main__":
 
     #### Define and parse (optional) arguments for the script ##
     parser = argparse.ArgumentParser(description='Multi-agent reinforcement learning experiments script')
-    parser.add_argument('--num_drones',  default=NUM_DRONES,        type=int,                                                                              help=f'Number of drones (default: {NUM_DRONES})', metavar='')
-    parser.add_argument('--env',         default='meet_at_height',  type=str,             choices=['leaderfollower', 'flock', 'meetup', 'meet_at_height'], help='Help (default: ..)', metavar='')
-    parser.add_argument('--obs',         default='kin',             type=ObservationType,                                                                  help='Help (default: ..)', metavar='')
-    parser.add_argument('--act',         default='one_d_rpm',       type=ActionType,                                                                       help='Help (default: ..)', metavar='')
-    parser.add_argument('--algo',        default='cc',              type=str,             choices=['cc'],                                                  help='Help (default: ..)', metavar='')
-    parser.add_argument('--workers',     default=0,                 type=int,                                                                              help='Help (default: ..)', metavar='')        
+    parser.add_argument('--num_drones',  default=NUM_DRONES,        type=int,                                                                                        help=f'Number of drones (default: {NUM_DRONES})', metavar='')
+    parser.add_argument('--env',         default='meet_at_height',  type=str,             choices=['leaderfollower', 'flock', 'meetup', 'meet_at_height', 'figure'], help='Help (default: ..)', metavar='')
+    parser.add_argument('--obs',         default='kin',             type=ObservationType,                                                                            help='Help (default: ..)', metavar='')
+    parser.add_argument('--act',         default='one_d_rpm',       type=ActionType,                                                                                 help='Help (default: ..)', metavar='')
+    parser.add_argument('--algo',        default='cc',              type=str,             choices=['cc'],                                                            help='Help (default: ..)', metavar='')
+    parser.add_argument('--workers',     default=0,                 type=int,                                                                                        help='Help (default: ..)', metavar='')        
     ARGS = parser.parse_args()
 
     #### Save directory ########################################
@@ -176,6 +177,10 @@ if __name__ == "__main__":
     #### Constants, and errors #################################
     if ARGS.obs==ObservationType.KIN:
         OWN_OBS_VEC_SIZE = 12
+        if ARGS.env == 'meet_at_height':
+            OWN_OBS_VEC_SIZE = 3
+        if ARGS.env == 'figure':
+            OWN_OBS_VEC_SIZE = 15 + 4 * (NUM_DRONES - 1)
     elif ARGS.obs==ObservationType.RGB:
         print("[ERROR] ObservationType.RGB for multi-agent systems not yet implemented")
         exit()
@@ -191,9 +196,6 @@ if __name__ == "__main__":
     else:
         print("[ERROR] unknown ActionType")
         exit()
-
-    if ARGS.env == 'meet_at_height':
-        OWN_OBS_VEC_SIZE = 3
 
     #### Uncomment to debug slurm scripts ######################
     # exit()
@@ -235,8 +237,15 @@ if __name__ == "__main__":
                                                            act=ARGS.act
                                                            )
                      )
+    elif ARGS.env == 'figure':
+        register_env(temp_env_name, lambda _: FigureAviary(num_drones=ARGS.num_drones,
+                                                           aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
+                                                           obs=ARGS.obs,
+                                                           act=ARGS.act
+                                                           )
+                    )
     else:
-        print("[ERROR] environment not yet implemented")
+        print(f"[ERROR] environment not yet implemented: {ARGS.env}")
         exit()
 
     #### Unused env to extract the act and obs spaces ##########
@@ -264,12 +273,15 @@ if __name__ == "__main__":
                                  obs=ARGS.obs,
                                  act=ARGS.act
                                  )
+    elif ARGS.env == 'figure':
+        temp_env = FigureAviary(num_drones=ARGS.num_drones,
+                                aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
+                                obs=ARGS.obs,
+                                act=ARGS.act
+                                )
     else:
-        print("[ERROR] environment not yet implemented")
+        print(f"[ERROR] environment not yet implemented: {ARGS.env}")
         exit()
-
-    # print("Printing observation space")
-    # OWN_OBS_VEC_SIZE = temp_env.observation_space[0].shape[0]
 
     # TODO: observer_space
     observer_space = Dict({
