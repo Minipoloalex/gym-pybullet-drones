@@ -85,28 +85,30 @@ optim = torch.optim.Adam(actor_critic.parameters(), lr=3e-4)
 def dist(*logits):
     return Independent(Normal(*logits), 1)
 
-policy = PPOPolicy(
-    actor,
-    critic,
-    optim,
-    dist_fn=dist,
-    action_space=env.action_space,
-    deterministic_eval=True,
-)
+policies = {}
+for i in range(NUM_DRONES):
+    policies[i] = PPOPolicy(
+        actor=actor,
+        critic=critic,
+        optim=optim,
+        dist_fn=dist,
+        action_space=train_envs.action_space,
+        deterministic_eval=True
+    )
 
-train_collector = Collector(policy, train_envs)
-test_collector = Collector(policy, test_envs)
+train_collector = Collector(policies[0], train_envs)
+test_collector = Collector(policies[1], test_envs)
 
 result = OnpolicyTrainer(
-    policy=policy,
+    policy=policies[0],
     train_collector=train_collector,
     test_collector=test_collector,
     max_epoch=80,
-    step_per_epoch=10000,
+    step_per_epoch=5000,
     repeat_per_collect=4,
     episode_per_test=10,
     batch_size=256,
-    step_per_collect=512,
+    step_per_collect=10,
     stop_fn=lambda mean_rewards: mean_rewards >= -10,
 ).run()
 
