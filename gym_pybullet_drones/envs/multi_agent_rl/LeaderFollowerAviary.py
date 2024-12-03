@@ -10,9 +10,13 @@ from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import Actio
 from gym_pybullet_drones.envs.multi_agent_rl.BaseMultiagentAviary import BaseMultiagentAviary
 
 class LeaderFollowerAviary(BaseMultiagentAviary):
-    """Multi-agent RL problem: leader-follower."""
-
-    ################################################################################
+    """
+    Multi-agent Reinforcement Learning (RL) environment for the leader-follower problem.
+    This environment models a scenario where one drone acts as the leader and others follow.
+    
+    The drones are rewarded based on their position relative to each other, and their task is to maintain
+    specific positions relative to the leader drone.
+    """
 
     def __init__(self,
                  drone_model: DroneModel=DroneModel.CF2X,
@@ -29,34 +33,34 @@ class LeaderFollowerAviary(BaseMultiagentAviary):
                  act: ActionType=ActionType.RPM):
         """Initialization of a multi-agent RL environment.
 
-        Using the generic multi-agent RL superclass.
+            Inherits from `BaseMultiagentAviary`, which is a superclass for multi-agent RL problems in gym.
 
-        Parameters
-        ----------
-        drone_model : DroneModel, optional
-            The desired drone type (detailed in an .urdf file in folder `assets`).
-        num_drones : int, optional
-            The desired number of drones in the aviary.
-        neighbourhood_radius : float, optional
-            Radius used to compute the drones' adjacency matrix, in meters.
-        initial_xyzs: ndarray | None, optional
-            (NUM_DRONES, 3)-shaped array containing the initial XYZ position of the drones.
-        initial_rpys: ndarray | None, optional
-            (NUM_DRONES, 3)-shaped array containing the initial orientations of the drones (in radians).
-        physics : Physics, optional
-            The desired implementation of PyBullet physics/custom dynamics.
-        freq : int, optional
-            The frequency (Hz) at which the physics engine steps.
-        aggregate_phy_steps : int, optional
-            The number of physics steps within one call to `BaseAviary.step()`.
-        gui : bool, optional
-            Whether to use PyBullet's GUI.
-        record : bool, optional
-            Whether to save a video of the simulation in folder `files/videos/`.
-        obs : ObservationType, optional
-            The type of observation space (kinematic information or vision)
-        act : ActionType, optional
-            The type of action space (1 or 3D; RPMS, thurst and torques, or waypoint with PID control)
+            Attributes:
+            -----------
+            drone_model : DroneModel
+                The type of drone to be used in the environment. Default is `DroneModel.CF2X` (detailed in an .urdf file in folder `assets`).
+            num_drones : int
+                The number of drones in the aviary. Default is 2.
+            neighbourhood_radius : float
+                The radius used for computing adjacency matrix, in meters, for the drones. Default is infinity.
+            initial_xyzs : ndarray or None
+                Initial positions of drones in 3D space. If None, the positions are initialized randomly.
+            initial_rpys : ndarray or None
+                Initial roll, pitch, yaw orientations of drones. If None, the orientations are initialized randomly.
+            physics : Physics
+                The physics engine used for simulating drone dynamics. Default is `Physics.PYB` (PyBullet).
+            freq : int
+                Frequency at which the physics engine steps. Default is 240Hz.
+            aggregate_phy_steps : int
+                The number of physics steps per `step()` call.
+            gui : bool
+                Whether to display the graphical user interface (GUI) for PyBullet. Default is `False`.
+            record : bool
+                Whether to record a video of the simulation. Default is `False`.
+            obs : ObservationType
+                The type of observation space (kinematic or vision-based). Default is `ObservationType.KIN`.
+            act : ActionType
+                The type of action space (RPM, thrust/torques, or waypoints). Default is `ActionType.RPM`.
 
         """
         super().__init__(drone_model=drone_model,
@@ -76,18 +80,27 @@ class LeaderFollowerAviary(BaseMultiagentAviary):
     ################################################################################
     
     def _computeReward(self):
-        """Computes the current reward value(s).
+        """
+            Computes the reward for each drone in the environment.
 
-        Returns
-        -------
-        dict[int, float]
-            The reward value for each drone.
+            The reward is based on the distance of each drone from its target position:
+            - The leader drone is rewarded based on how close it is to a target position.
+            - The follower drones are rewarded based on how close they are to their respective target positions.
 
+            Returns:
+            --------
+            dict[int, float]
+                A dictionary where keys are drone indices and values are the computed rewards.
         """
         rewards = {}
         states = np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
+
+        # Reward for the leader drone
         rewards[0] = -1 * np.linalg.norm(np.array([0, 0, 0.5]) - states[0, 0:3])**2
+
         # rewards[1] = -1 * np.linalg.norm(np.array([states[1, 0], states[1, 1], 0.5]) - states[1, 0:3])**2 # DEBUG WITH INDEPENDENT REWARD 
+        
+        # Reward for follower drones
         for i in range(1, self.NUM_DRONES):
             rewards[i] = -(1/self.NUM_DRONES) * np.linalg.norm(np.array([states[i, 0], states[i, 1], states[0, 2]]) - states[i, 0:3])**2
         return rewards
@@ -95,15 +108,18 @@ class LeaderFollowerAviary(BaseMultiagentAviary):
     ################################################################################
     
     def _computeDone(self):
-        """Computes the current done value(s).
-
-        Returns
-        -------
-        dict[int | "__all__", bool]
-            Dictionary with the done value of each drone and 
-            one additional boolean value for key "__all__".
-
         """
+            Determines if the episode is done based on the simulation time.
+
+            An episode ends when the simulation time exceeds the predefined episode length.
+
+            Returns:
+            --------
+            dict[int | "__all__", bool]
+                A dictionary where each key corresponds to a drone and indicates whether the episode is done for that drone.
+                Additionally, a key `"__all__"` is included to indicate if the entire episode is done.
+        """
+
         bool_val = True if self.step_counter/self.SIM_FREQ > self.EPISODE_LEN_SEC else False
         done = {i: bool_val for i in range(self.NUM_DRONES)}
         done["__all__"] = bool_val # True if True in done.values() else False
@@ -112,35 +128,35 @@ class LeaderFollowerAviary(BaseMultiagentAviary):
     ################################################################################
     
     def _computeInfo(self):
-        """Computes the current info dict(s).
+        """
+            Returns additional information about the current state of the environment.
+            
+            Currently not used, but a placeholder for future implementation.
 
-        Unused.
-
-        Returns
-        -------
-        dict[int, dict[]]
-            Dictionary of empty dictionaries.
-
+            Returns:
+            --------
+            dict[int, dict]
+                A dictionary where keys are drone indices and the values are empty dictionaries (unused).
         """
         return {i: {} for i in range(self.NUM_DRONES)}
 
     ################################################################################
 
-    def _clipAndNormalizeState(self,
-                               state
-                               ):
-        """Normalizes a drone's state to the [-1,1] range.
+    def _clipAndNormalizeState(self, state):
+        """
+            Normalizes and clips the state of a drone to ensure it falls within predefined limits.
+            
+            The normalization ensures that the state values are mapped to the range [-1, 1].
 
-        Parameters
-        ----------
-        state : ndarray
-            (20,)-shaped array of floats containing the non-normalized state of a single drone.
-
-        Returns
-        -------
-        ndarray
-            (20,)-shaped array of floats containing the normalized state of a single drone.
-
+            Parameters:
+            -----------
+            state : ndarray
+                A 20-dimensional array representing the state of a single drone.
+            
+            Returns:
+            --------
+            ndarray
+                A 20-dimensional array containing the clipped and normalized state of the drone.
         """
         MAX_LIN_VEL_XY = 3 
         MAX_LIN_VEL_Z = 1
@@ -196,10 +212,25 @@ class LeaderFollowerAviary(BaseMultiagentAviary):
                                       clipped_vel_xy,
                                       clipped_vel_z,
                                       ):
-        """Debugging printouts associated to `_clipAndNormalizeState`.
+        """
+            Prints warnings if the state values are outside the expected clipping range during debugging.
 
-        Print a warning if values in a state vector is out of the clipping range.
-        
+            This method is invoked if a value exceeds the set clipping boundaries, providing feedback for debugging.
+
+            Parameters:
+            -----------
+            state : ndarray
+                The original state of the drone.
+            clipped_pos_xy : ndarray
+                The clipped values for the drone's position in the XY plane.
+            clipped_pos_z : ndarray
+                The clipped value for the drone's Z position.
+            clipped_rp : ndarray
+                The clipped values for the drone's roll and pitch.
+            clipped_vel_xy : ndarray
+                The clipped values for the drone's velocity in the XY plane.
+            clipped_vel_z : ndarray
+                The clipped value for the drone's Z velocity.
         """
         if not(clipped_pos_xy == np.array(state[0:2])).all():
             print("[WARNING] it", self.step_counter, "in LeaderFollowerAviary._clipAndNormalizeState(), clipped xy position [{:.2f} {:.2f}]".format(state[0], state[1]))
