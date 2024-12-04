@@ -30,7 +30,8 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
                  gui=False,
                  record=False, 
                  obs: ObservationType=ObservationType.KIN,
-                 act: ActionType=ActionType.RPM):
+                 act: ActionType=ActionType.RPM,
+                 is_test_env: bool = False):
         """Initialization of a multi-agent RL environment.
 
         Using the generic multi-agent RL superclass.
@@ -63,7 +64,7 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
             The type of action space (1 or 3D; RPMS, thurst and torques, or waypoint with PID control)
 
         """
-        possible_height = np.linspace(0.1, 0.5)
+        possible_height = np.linspace(0.1, 1)
         if initial_xyzs is None:
             xs = np.array([0.2*x for x in range(num_drones)])
             ys = np.array([0 for _ in range(num_drones)])
@@ -82,6 +83,7 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
                          obs=obs,
                          act=act
                          )
+        self.is_test_env = is_test_env
         self.MIN_HEIGHT = 0.2
         self.OWN_OBS_VEC_SIZE = 3
 
@@ -103,12 +105,7 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
             average_z = np.mean(states[:, 2])
             average_z = max(self.MIN_HEIGHT, average_z)
             rewards[i] = -1 * (average_z - states[i, 2])**2
-            # rewards[i] = -1 * np.linalg.norm(np.array([states[i, 0], states[i, 1], 0.5]) - states[i, 0:3])**2
-        # rewards[0] = -1 * np.linalg.norm(np.array([0, 0, 0.5]) - states[0, 0:3])**2
-        # # rewards[1] = -1 * np.linalg.norm(np.array([states[1, 0], states[1, 1], 0.5]) - states[1, 0:3])**2 # DEBUG WITH INDEPENDENT REWARD
-        # for i in range(1, self.NUM_DRONES):
-        #     rewards[i] = -(1/self.NUM_DRONES) * np.linalg.norm(np.array([states[i, 0], states[i, 1], states[0, 2]]) - states[i, 0:3])**2
-        # return rewards
+
         return rewards
 
     ################################################################################
@@ -141,7 +138,8 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
             Dictionary of empty dictionaries.
 
         """
-        return {i: {} for i in range(self.NUM_DRONES)}
+        info = lambda i: self._getDroneStateVector(i) if self.is_test_env else {}
+        return {i: info(i) for i in range(self.NUM_DRONES)}
 
     ################################################################################
 
@@ -288,11 +286,13 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
 
             states = np.array([self._clipAndNormalizeState(self._getDroneStateVector(i)) for i in range(self.NUM_DRONES)])
             # log(f"states: {states}")
-            # print("HELLOOOOOOO")
+
             average_z = np.mean(states[:, 2])
             for i in range(self.NUM_DRONES):                
                 obs = self._clipAndNormalizeState(self._getDroneStateVector(i))
-                obs_3[i, :] = np.hstack([obs[2], obs[12], average_z]).reshape(3,)
+                z_obs = obs[2]
+                vz_obs = obs[12]
+                obs_3[i, :] = np.hstack([z_obs, vz_obs, average_z]).reshape(3,)
             return {i: obs_3[i, :] for i in range(self.NUM_DRONES)}
             ############################################################
         else:
