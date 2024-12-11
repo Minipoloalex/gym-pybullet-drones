@@ -244,7 +244,7 @@ class BaseAviary(gym.Env):
         self._updateAndStoreKinematicInformation()
         #### Start video recording #################################
         self._startVideoRecording()
-    
+
     ################################################################################
 
     def reset(self):
