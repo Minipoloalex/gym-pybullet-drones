@@ -69,6 +69,9 @@ class CustomTorchCentralizedCriticModel(TorchModelV2, nn.Module):
     """
 
     def __init__(self, obs_space, action_space, num_outputs, model_config, name):
+        # model_config["fcnet_hiddens"] = [512, 512, 256, 256]
+        model_config["fcnet_hiddens"] = [256, 512, 256]
+
         TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
         nn.Module.__init__(self)
         self.action_model = FullyConnectedNetwork(

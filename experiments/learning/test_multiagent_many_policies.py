@@ -43,6 +43,7 @@ from gym_pybullet_drones.envs.multi_agent_rl.FlockAviary import FlockAviary
 from gym_pybullet_drones.envs.multi_agent_rl.LeaderFollowerAviary import LeaderFollowerAviary
 from gym_pybullet_drones.envs.multi_agent_rl.MeetupAviary import MeetupAviary
 from gym_pybullet_drones.envs.multi_agent_rl.MeetAtHeightAviary import MeetAtHeightAviary
+from gym_pybullet_drones.envs.multi_agent_rl.ChaseAviary import ChaseAviary
 from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType
 from gym_pybullet_drones.envs.multi_agent_rl.FigureAviary import FigureAviary
 from gym_pybullet_drones.utils.Logger import Logger
@@ -136,6 +137,8 @@ if __name__ == "__main__":
             OWN_OBS_VEC_SIZE = 3
         elif env_name == 'figure':
             OWN_OBS_VEC_SIZE = 15 + 4 * (NUM_DRONES - 1)
+        elif env_name == 'chase':
+            OWN_OBS_VEC_SIZE = 3
     elif OBS == ObservationType.RGB:
         print("[ERROR] ObservationType.RGB for multi-agent systems not yet implemented")
         exit()
@@ -197,6 +200,13 @@ if __name__ == "__main__":
                                                            act=ACT
                                                            )
                      )
+    elif ARGS.exp.split("-")[1] == 'chase':
+        register_env(temp_env_name, lambda _: ChaseAviary(num_drones=NUM_DRONES,
+                                                        #    aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
+                                                           obs=OBS,
+                                                           act=ACT
+                                                           )
+                     )
     else:
         print("[ERROR] environment not yet implemented")
         exit()
@@ -229,6 +239,12 @@ if __name__ == "__main__":
     elif ARGS.exp.split("-")[1] == 'figure':
         temp_env = FigureAviary(num_drones=NUM_DRONES,
                                 aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
+                                obs=OBS,
+                                act=ACT,
+                                )
+    elif ARGS.exp.split("-")[1] == 'chase':
+        temp_env = ChaseAviary(num_drones=NUM_DRONES,
+                                # aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
                                 obs=OBS,
                                 act=ACT,
                                 )
@@ -271,8 +287,9 @@ if __name__ == "__main__":
         checkpoint = f.read()
     agent.restore(checkpoint)
 
-    #### Extract and print policies ############################
+    #### Extract policies ############################
     policies = [agent.get_policy(f"pol{x}") for x in range(NUM_DRONES)]
+
     #### Create test environment ###############################
     if ARGS.exp.split("-")[1] == 'flock':
         test_env = FlockAviary(num_drones=NUM_DRONES,
@@ -314,6 +331,14 @@ if __name__ == "__main__":
                                 record=ARGS.record,
                                 is_test_env=True,
                                 )
+    elif ARGS.exp.split("-")[1] == 'chase':
+        test_env = ChaseAviary(num_drones=NUM_DRONES,
+                                obs=OBS,
+                                act=ACT,
+                                gui=True,
+                                record=ARGS.record,
+                                is_test_env=True,
+                                )
     else:
         print("[ERROR] environment not yet implemented")
         exit()
@@ -336,10 +361,6 @@ if __name__ == "__main__":
 
     for i in range(6*int(test_env.SIM_FREQ/test_env.AGGR_PHY_STEPS)): # Up to 6''
         #### Deploy the policies ###################################
-        # temp = {}
-        # temp[0] = policy0.compute_single_action(np.hstack([action[1], obs[1], obs[0]])) # Counterintuitive order, check params.json
-        # temp[1] = policy1.compute_single_action(np.hstack([action[0], obs[0], obs[1]]))
-        # action = {0: temp[0][0], 1: temp[1][0]}
 
         temp = {}
         for i in range(NUM_DRONES):
@@ -351,10 +372,7 @@ if __name__ == "__main__":
 
         obs, reward, done, info = test_env.step(action)
         test_env.render()
-        # print("Observation")
-        # print(obs)
-        print("Action")
-        print()
+
         if OBS==ObservationType.KIN:
             info = test_env._computeInfo()
             for j in range(NUM_DRONES):
