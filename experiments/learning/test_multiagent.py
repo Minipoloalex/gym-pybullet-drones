@@ -42,6 +42,7 @@ from gym_pybullet_drones.envs.BaseAviary import DroneModel, Physics
 from gym_pybullet_drones.envs.multi_agent_rl.FlockAviary import FlockAviary
 from gym_pybullet_drones.envs.multi_agent_rl.LeaderFollowerAviary import LeaderFollowerAviary
 from gym_pybullet_drones.envs.multi_agent_rl.MeetupAviary import MeetupAviary
+from gym_pybullet_drones.envs.multi_agent_rl.HoverAviary import HoverAviary
 from gym_pybullet_drones.envs.multi_agent_rl.MeetAtHeightAviary import MeetAtHeightAviary
 from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType
 from gym_pybullet_drones.utils.Logger import Logger
@@ -179,8 +180,15 @@ if __name__ == "__main__":
         ACT = ActionType.ONE_D_PID
 
     #### Constants, and errors #################################
+    env_name = ARGS.exp.split("-")[1]
     if OBS == ObservationType.KIN:
         OWN_OBS_VEC_SIZE = 12
+        if env_name == 'meet_at_height':
+            OWN_OBS_VEC_SIZE = 3
+        elif env_name == 'figure':
+            OWN_OBS_VEC_SIZE = 15 + 4 * (NUM_DRONES - 1)
+        elif env_name == 'hover':
+            OWN_OBS_VEC_SIZE = 19
     elif OBS == ObservationType.RGB:
         print("[ERROR] ObservationType.RGB for multi-agent systems not yet implemented")
         exit()
@@ -196,10 +204,6 @@ if __name__ == "__main__":
     else:
         print("[ERROR] unknown ActionType")
         exit()
-
-    env_name = ARGS.exp.split("-")[1]
-    if env_name == 'meet_at_height':
-        OWN_OBS_VEC_SIZE = 3
 
 
     #### Initialize Ray Tune ###################################
@@ -234,11 +238,22 @@ if __name__ == "__main__":
                      )
     elif ARGS.exp.split("-")[1] == 'meet_at_height':
         register_env(temp_env_name, lambda _: MeetAtHeightAviary(num_drones=NUM_DRONES,
-                                                           aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
+                                                           obs=OBS,
+                                                           act=ACT
+                                                           )
+                     )
+    elif ARGS.exp.split("-")[1] == 'figure':
+        register_env(temp_env_name, lambda _: FigureAviary(num_drones=NUM_DRONES,
                                                            obs=OBS,
                                                            act=ACT
                                                            )
                      ) 
+    elif ARGS.exp.split("-")[1] == 'hover':
+        register_env(temp_env_name, lambda _: HoverAviary(num_drones=NUM_DRONES,
+                                                           obs=OBS,
+                                                           act=ACT
+                                                           )
+                     )
     else:
         print("[ERROR] environment not yet implemented")
         exit()
@@ -264,10 +279,19 @@ if __name__ == "__main__":
                                 )
     elif ARGS.exp.split("-")[1] == 'meet_at_height':
         temp_env = MeetAtHeightAviary(num_drones=NUM_DRONES,
-                                aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
                                 obs=OBS,
-                                act=ACT
-                                ) 
+                                act=ACT,
+                                )
+    elif ARGS.exp.split("-")[1] == 'figure':
+        temp_env = FigureAviary(num_drones=NUM_DRONES,
+                                obs=OBS,
+                                act=ACT,
+                                )
+    elif ARGS.exp.split("-")[1] == 'hover':
+        temp_env = HoverAviary(num_drones=NUM_DRONES,
+                                obs=OBS,
+                                act=ACT,
+                                )
     else:
         print("[ERROR] environment not yet implemented")
         exit()
@@ -307,7 +331,7 @@ if __name__ == "__main__":
     #     "policy_mapping_fn": lambda x: f"pol{x}", # Function mapping agent ids to policy ids
     #     "observation_fn": central_critic_observer, # See rllib/evaluation/observation_function.py for more info
     # }
-    config["multiagent"] = { 
+    config["multiagent"] = {
         "policies": {
             "pol": (None, observer_space, action_space, {}),
             # "pol0": (None, observer_space, action_space, {"agent_id": 0,}),
@@ -359,13 +383,28 @@ if __name__ == "__main__":
                                 record=ARGS.record
                                 )
     elif ARGS.exp.split("-")[1] == 'meet_at_height':
-        print("Creating test environment")
         test_env = MeetAtHeightAviary(num_drones=NUM_DRONES,
-                                aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
                                 obs=OBS,
                                 act=ACT,
-                                gui=False,
-                                record=ARGS.record
+                                gui=True,
+                                record=ARGS.record,
+                                is_test_env=True
+                                )
+    elif ARGS.exp.split("-")[1] == 'figure':
+        test_env = FigureAviary(num_drones=NUM_DRONES,
+                                obs=OBS,
+                                act=ACT,
+                                gui=True,
+                                record=ARGS.record,
+                                is_test_env=True
+                                )
+    elif ARGS.exp.split("-")[1] == 'hover':
+        test_env = HoverAviary(num_drones=NUM_DRONES,
+                                obs=OBS,
+                                act=ACT,
+                                gui=True,
+                                record=ARGS.record,
+                                is_test_env=True
                                 )
         print("Finished creating test environment")
     else:
@@ -410,14 +449,13 @@ if __name__ == "__main__":
         print("Action")
         print()
         if OBS==ObservationType.KIN:
+            info = test_env._computeInfo()
             for j in range(NUM_DRONES):
-                others = np.zeros(15 - 3) if env_name == "meet_at_height" else obs[j][3:15]
                 logger.log(drone=j,
                            timestamp=i/test_env.SIM_FREQ,
-                           state= np.hstack([obs[j][0:3], np.zeros(4), others, np.resize(action[j], (4))]),
+                           state=np.hstack(info[j]),
                            control=np.zeros(12)
                            )
-                pass
         sync(np.floor(i*test_env.AGGR_PHY_STEPS), start, test_env.TIMESTEP)
         # if done["__all__"]: obs = test_env.reset() # OPTIONAL EPISODE HALT
     test_env.close()
