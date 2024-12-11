@@ -9,9 +9,8 @@ from gym_pybullet_drones.envs.BaseAviary import DroneModel, Physics, BaseAviary
 from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType
 from gym_pybullet_drones.envs.multi_agent_rl.BaseMultiagentAviary import BaseMultiagentAviary
 
-# Create a logging file
-def log(msg):
-    print("Logging stuff: ", msg)
+from pprint import pprint
+
 
 class FigureAviary(BaseMultiagentAviary):
     """Multi-agent RL problem: draw a simple figure."""
@@ -30,7 +29,8 @@ class FigureAviary(BaseMultiagentAviary):
                  gui=False,
                  record=False, 
                  obs: ObservationType=ObservationType.KIN,
-                 act: ActionType=ActionType.RPM):
+                 act: ActionType=ActionType.RPM,
+                 is_test_env: bool = False):
         """Initialization of a multi-agent RL environment.
 
         Using the generic multi-agent RL superclass.
@@ -71,6 +71,13 @@ class FigureAviary(BaseMultiagentAviary):
             ys = np.random.choice(possible_y, num_drones)
             zs = np.random.choice(possible_z, num_drones)
             initial_xyzs = np.vstack([xs, ys, zs]).transpose().reshape(num_drones, 3)
+
+        initial_xyzs = np.array([(0.5, 0.5, 0.5), (0.0, 0.0, 0.5)]) # TODO
+        print("Initial positions")
+        print(initial_xyzs)
+        print(initial_xyzs.shape)
+        print(f"Aggregate physics steps {aggregate_phy_steps}")
+        self.TARGET = [(0.2, 0.2, 0.4), (-0.3, -0.3, 0.4)]  # TODO
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,
                          neighbourhood_radius=neighbourhood_radius,
@@ -90,9 +97,13 @@ class FigureAviary(BaseMultiagentAviary):
         alpha = 2 * math.pi / self.NUM_DRONES
         r = self.MIN_DISTANCE
         z = 0.4
-        self.TARGET = [self._clipAndNormalizeTarget([r * math.cos(alpha * i), r * math.sin(alpha * i), z])
-                       for i in range(self.NUM_DRONES)]
+        # TODO
+        # self.TARGET = [self._clipAndNormalizeTarget([r * math.cos(alpha * i), r * math.sin(alpha * i), z])
+        #                for i in range(self.NUM_DRONES)]
+        print(self.TARGET)
         self.OWN_OBS_VEC_SIZE = 15 + 4 * (self.NUM_DRONES - 1)
+
+        self.is_test_env = is_test_env
 
     ################################################################################
 
@@ -111,19 +122,18 @@ class FigureAviary(BaseMultiagentAviary):
         distances = np.zeros((self.NUM_DRONES, self.NUM_DRONES))
         for i in range(self.NUM_DRONES):
             for j in range(i):
-                if i != j:
-                    d = calculate_distance(states_raw[i, 0:3], states_raw[j, 0:3])
-                    distances[i, j] = d
-                    distances[j, i] = d
+                d = calculate_distance(states_raw[i, 0:3], states_raw[j, 0:3])
+                distances[i, j] = d
+                distances[j, i] = d
             distances[i, i] = calculate_distance(states_raw[i, 0:3], self.TARGET[i])
 
         for i in range(self.NUM_DRONES):
             # The main goal is to reach the target
-            reward = -1 * distances[i, j] * self.NUM_DRONES
-            # The secondary goal is to avoid collisions
-            for j in range(self.NUM_DRONES):
-                if i != j:
-                    reward += min(distances[i,j] - self.MIN_DISTANCE, 0) * (1 / self.MIN_DISTANCE)
+            reward = -1 * distances[i, i] * self.NUM_DRONES
+            # # The secondary goal is to avoid collisions
+            # for j in range(self.NUM_DRONES):
+            #     if i != j:
+            #         reward += min(distances[i,j] - self.MIN_DISTANCE, 0) * (1 / self.MIN_DISTANCE)
             rewards[i] = reward
         return rewards
 
@@ -157,7 +167,8 @@ class FigureAviary(BaseMultiagentAviary):
             Dictionary of empty dictionaries.
 
         """
-        return {i: {} for i in range(self.NUM_DRONES)}
+        info = lambda i: self._getDroneStateVector(i) if self.is_test_env else {}
+        return {i: info(i) for i in range(self.NUM_DRONES)}
 
     ################################################################################
 
@@ -313,7 +324,7 @@ class FigureAviary(BaseMultiagentAviary):
                                v_boundary  [i], v_boundary  [i], v_boundary  [i],
                                rpy_boundary[i], rpy_boundary[i], rpy_boundary[i],
                                w_boundary  [i], w_boundary  [i], w_boundary  [i],
-                               u_boundary  [i], u_boundary  [i], u_boundary  [i]]
+                               u_boundary  [i], u_boundary  [i], u_boundary  [i]] # TODO ? xy_boundary[i], xy_boundary[i], z_boundary[i]
                 for _ in range(1, self.NUM_DRONES):
                     boundaries += [d_boundary[i],
                                    u_boundary[i], u_boundary[i], u_boundary[i]]
@@ -347,24 +358,23 @@ class FigureAviary(BaseMultiagentAviary):
             #### OBS SPACE OF SIZE = 15 + 4 * (NUM_DRONES - 1)
             # x y z vx vy vz r p y wx wy wz tx ty tz [d ux uy uz]+
 
-            obs = np.zeros((self.NUM_DRONES, 15 + 4 * (self.NUM_DRONES - 1)))
-            
+            obs = np.zeros((self.NUM_DRONES, self.OWN_OBS_VEC_SIZE))
+
             states_raw = np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
             states = np.array([self._clipAndNormalizeState(self._getDroneStateVector(i)) for i in range(self.NUM_DRONES)])
-            
+
             distances = np.zeros((self.NUM_DRONES, self.NUM_DRONES))
             unit_vectors = np.zeros((self.NUM_DRONES, self.NUM_DRONES, 3))
             for i in range(self.NUM_DRONES):
                 for j in range(i):
-                    if i != j:
-                        distance = calculate_distance(states_raw[i, 0:3], states_raw[j, 0:3])
-                        unit_vector = [(states_raw[j, 0] - states_raw[i, 0]) / distance,
-                                       (states_raw[j, 1] - states_raw[i, 1]) / distance,
-                                       (states_raw[j, 2] - states_raw[i, 2]) / distance]
-                        distances[i, j] = distance
-                        distances[j, i] = distance
-                        unit_vectors[i, j, :] = np.array(unit_vector)
-                        unit_vectors[j, i, :] = np.array([-u for u in unit_vector])
+                    distance = calculate_distance(states_raw[i, 0:3], states_raw[j, 0:3])
+                    unit_vector = [(states_raw[j, 0] - states_raw[i, 0]) / distance,
+                                    (states_raw[j, 1] - states_raw[i, 1]) / distance,
+                                    (states_raw[j, 2] - states_raw[i, 2]) / distance]
+                    distances[i, j] = distance
+                    distances[j, i] = distance
+                    unit_vectors[i, j, :] = np.array(unit_vector)
+                    unit_vectors[j, i, :] = np.array([-u for u in unit_vector])
 
             for i in range(self.NUM_DRONES):
                 others = [
@@ -372,14 +382,52 @@ class FigureAviary(BaseMultiagentAviary):
                      unit_vectors[i, j][0], unit_vectors[i, j][1], unit_vectors[i, j][2]]
                     for j in range(self.NUM_DRONES) if i != j
                 ]
+                others = sorted(others, key=lambda x: x[0])
                 obs[i, :] = np.hstack([states[i,  0: 3], # x y z
                                        states[i, 10:13], # vx vy vz
-                                       states[i,  7:10], # r p y
+                                    #    states[i, 3:7]  , # quaternions
+                                       states[i,  7:10], # r p y    # TODO: put quaternions instead of RPYs
                                        states[i, 13:16], # wx wy wz
                                        self.TARGET[i]  , # tx ty tz
                                        np.hstack(others) # [d ux uy uz]+
                                       ])
 
+            # xy_boundary  = [-1, 1]
+            # z_boundary   = [ 0, 1]
+            # v_boundary   = [-1, 1]
+            # rpy_boundary = [-1, 1]
+            # w_boundary   = [-1, 1]
+            # d_boundary   = [ 0, 1]
+            # u_boundary   = [-1, 1]
+            # boundary = np.array([
+            #     xy_boundary,
+            #     xy_boundary,
+            #     z_boundary,
+            #     v_boundary,
+            #     v_boundary,
+            #     v_boundary,
+            #     rpy_boundary,
+            #     rpy_boundary,
+            #     rpy_boundary,
+            #     w_boundary,
+            #     w_boundary,
+            #     w_boundary,
+            #     d_boundary,
+            #     u_boundary,
+            #     u_boundary,
+            #     u_boundary,]
+            # )
+            
+            # print("==========================================================================")
+            # print("==========================================================================")
+            # for i in range(self.NUM_DRONES):
+            #     for v, b in zip(obs[i], boundary):
+            #         print(boundary[0], v, boundary[1], boundary[0] <= v, v <= boundary[1])
+            # print("==========================================================================")
+            # print("==========================================================================")
+
+            # pprint(obs)
+            
             return {i: obs[i, :] for i in range(self.NUM_DRONES)}
             ############################################################
         else:

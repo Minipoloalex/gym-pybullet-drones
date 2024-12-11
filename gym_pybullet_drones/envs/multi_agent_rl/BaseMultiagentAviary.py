@@ -144,7 +144,7 @@ class BaseMultiagentAviary(BaseAviary, MultiAgentEnv):
         Returns
         -------
         dict[int, ndarray]
-            A Dict() of Box() of size 1, 3, or 3, depending on the action type,
+            A Dict() of Box() of size 1, 3, or 4, depending on the action type,
             indexed by drone Id in integer format.
 
         """
