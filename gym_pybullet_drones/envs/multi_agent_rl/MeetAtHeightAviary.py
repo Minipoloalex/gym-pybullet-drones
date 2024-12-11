@@ -30,7 +30,7 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
                  gui=False,
                  record=False, 
                  obs: ObservationType=ObservationType.KIN,
-                 act: ActionType=ActionType.RPM,
+                 act: ActionType=ActionType.ONE_D_RPM,
                  is_test_env: bool = False):
         """Initialization of a multi-agent RL environment.
 
@@ -64,6 +64,7 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
             The type of action space (1 or 3D; RPMS, thurst and torques, or waypoint with PID control)
 
         """
+
         possible_height = np.linspace(0.1, 1)
         if initial_xyzs is None:
             xs = np.array([0.2*x for x in range(num_drones)])
@@ -289,7 +290,7 @@ class MeetAtHeightAviary(BaseMultiagentAviary):
 
             average_z = np.mean(states[:, 2])
             for i in range(self.NUM_DRONES):                
-                obs = self._clipAndNormalizeState(self._getDroneStateVector(i))
+                obs = states[i]
                 z_obs = obs[2]
                 vz_obs = obs[12]
                 obs_3[i, :] = np.hstack([z_obs, vz_obs, average_z]).reshape(3,)
