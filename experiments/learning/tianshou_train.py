@@ -1,6 +1,10 @@
 import gymnasium as gym
 import torch
 import numpy as np
+from gym_pybullet_drones.envs.BaseAviary import DroneModel
+from gym_pybullet_drones.envs.multi_agent_rl.LeaderFollowerAviary import LeaderFollowerAviary
+from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType
+
 from tianshou.data import Collector
 from tianshou.env import DummyVectorEnv
 from tianshou.policy import PPOPolicy
@@ -9,9 +13,6 @@ from tianshou.utils.net.common import ActorCritic, Net
 from tianshou.utils.net.continuous import ActorProb, Critic
 from torch.distributions import Independent, Normal
 
-from gym_pybullet_drones.envs.BaseAviary import DroneModel
-from gym_pybullet_drones.envs.multi_agent_rl.LeaderFollowerAviary import LeaderFollowerAviary
-from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType
 
 NUM_DRONES = 2
 AGGR_PHY_STEPS = 5
