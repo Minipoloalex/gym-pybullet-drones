@@ -101,6 +101,12 @@ class HoverAviary(BaseMultiagentAviary):
             state = self._getDroneStateVector(i)
             distance = calculate_distance(state[0:3], self.TARGETS[i])
             rewards[i] = -distance * distance
+            z = state[2]
+            if z <= 0.1:
+                rewards[i] += -10000
+            if z >= 1:
+                rewards[i] += -1000
+
         # states_raw = np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
 
         # distances = np.zeros((self.NUM_DRONES, self.NUM_DRONES))

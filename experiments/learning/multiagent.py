@@ -123,7 +123,7 @@ class CustomTorchCentralizedCriticModel(TorchModelV2, nn.Module):
 #         to_update[:, -ACTION_VEC_SIZE:] = opponent_actions
 
 ############################################################
-NUM_DRONES = 5 # TODO: fix me, I'm an hardcoded value that should come from the values in the command line!
+NUM_DRONES = 2 # TODO: fix me, I'm an hardcoded value that should come from the values in the command line!
 def central_critic_observer(agent_obs, **kw):
     z_index = 2
     vz_index = 8
@@ -291,14 +291,6 @@ if __name__ == "__main__":
         # "opponent_action": temp_env.action_space[0],
     })
     action_space = temp_env.action_space[0]
-    print("----------------------------------------------------")
-    print("----------------------------------------------------")
-    print(temp_env.observation_space[0].shape)
-    # print(observer_space["self_obs"].shape)
-    # print(type(observer_space["self_obs"]))
-    print(action_space.shape)
-    print("----------------------------------------------------")
-    print("----------------------------------------------------")
 
     #### Note ##################################################
     # RLlib will create ``num_workers + 1`` copies of the
@@ -324,7 +316,7 @@ if __name__ == "__main__":
     }
     #### Set up the multiagent params of the trainer's config ##
     # TODO: policies
-    config["multiagent"] = { 
+    config["multiagent"] = {
         "policies": {
             "pol": (None, observer_space, action_space, {}),
             # "pol0": (None, observer_space, action_space, {"agent_id": 0,}),
@@ -337,7 +329,7 @@ if __name__ == "__main__":
 
     #### Ray Tune stopping conditions ##########################
     stop = {
-        "timesteps_total": 100000,#120000, # 100000 ~= 10'
+        "timesteps_total": 5_000_000,#120000, # 100000 ~= 10'
         # "episode_reward_mean": 0,
         # "training_iteration": 0,
     }
