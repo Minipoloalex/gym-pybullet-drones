@@ -17,7 +17,7 @@ def plot_moving_average(data, x, y, hue, title, x_label = None, y_label = None, 
         .add(so.Band(), ymin = f"{y}_min", ymax = f"{y}_max", color = color) \
         .add(so.Line(), y = f"{y}_avg", color = color) \
         .label(x = x_label, y = y_label, title = title, legend=True) \
-        .show()
+        .save(f"figure{time.time()}.png")
 
     return
 
@@ -25,7 +25,7 @@ def plot_moving_average_multiple_files(files: dict[str, str]):
     dfs = []
     for file_label, file in files.items():
         file_df = pd.read_csv(file)
-        file_df["Task"] = file_label
+        file_df["Environment"] = file_label
         dfs.append(file_df)
     complete_df = pd.concat(dfs, ignore_index=True)
     plot_moving_average(complete_df, "timesteps_total", "episode_reward_mean", "Task",
@@ -42,10 +42,11 @@ if __name__ == "__main__":
     leader_follower_file = "./results/save-leaderfollower-2-cc-kin-one_d_rpm-11.16.2024_14.50.34/PPO/PPO_this-aviary-v0_0_2024-11-16_14-50-35vplh6a_i/progress.csv"
     meet_at_height_file = "./results/save-meet_at_height-5-cc-kin-one_d_rpm-11.27.2024_14.31.48/PPO/PPO_meet_at_height-aviary-v0_0_2024-11-27_14-31-50ov97n_q_/progress.csv"
     meet_at_height_file_multiple_policies = "./results/save-meet_at_height-5-cc-kin-one_d_rpm-12.04.2024_11.02.48/PPO/PPO_meet_at_height-aviary-v0_0_2024-12-04_11-02-491vnhvzh2/progress.csv"
+    chase_file = "./results/save-chase-2-cc-kin-one_d_rpm-12.11.2024_11.13.12/PPO/PPO_chase-aviary-v0_0_2024-12-11_11-13-140uousp1s/progress.csv"
 
     files = {
-        "Leader-follower": leader_follower_file,
         "Meet-at-height": meet_at_height_file,
+        "Leader-follower": leader_follower_file,
     }
 
     meet_at_height_files = {
@@ -53,6 +54,14 @@ if __name__ == "__main__":
         "Meet-at-height 5 policies": meet_at_height_file_multiple_policies,
     }
 
+    chase_files = {
+        "Meet-at-height": meet_at_height_file,
+        "Leader-follower": leader_follower_file,
+        "Chase": chase_file,
+    }
+
     plot_moving_average_multiple_files(files)
     plot_moving_average_multiple_files(meet_at_height_files)
     plot_moving_average_single_file(leader_follower_file)
+    plot_moving_average_multiple_files(chase_files)
+    plot_moving_average_single_file(chase_file)
