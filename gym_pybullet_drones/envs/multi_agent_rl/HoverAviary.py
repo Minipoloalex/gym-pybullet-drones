@@ -78,8 +78,6 @@ class HoverAviary(BaseMultiagentAviary):
                          obs=obs,
                          act=act
                          )
-
-        # Calculate Targets (should be sufficiently far away from each other)
         
         self.OWN_OBS_VEC_SIZE = 19
 
@@ -99,32 +97,20 @@ class HoverAviary(BaseMultiagentAviary):
         rewards = {}
         for i in range(self.NUM_DRONES):
             state = self._getDroneStateVector(i)
-            distance = calculate_distance(state[0:3], self.TARGETS[i])
-            rewards[i] = -distance * distance
+            distance = calculate_distance_sq(state[0:3], self.TARGETS[i])
+            rewards[i] = -distance
             z = state[2]
-            if z <= 0.1:
-                rewards[i] += -10000
-            if z >= 1:
-                rewards[i] += -1000
+            zt = self.TARGETS[i][2]
+            zdist_sq = (zt - z) * (zt - z)
+            if z <= zt:
+                rewards[i] -= zdist_sq * 10
+            else:
+                rewards[i] -= zdist_sq * 2
+            # if z <= 0.1:
+            #     rewards[i] += -10
+            # if z >= 1:
+            #     rewards[i] += -10
 
-        # states_raw = np.array([self._getDroneStateVector(i) for i in range(self.NUM_DRONES)])
-
-        # distances = np.zeros((self.NUM_DRONES, self.NUM_DRONES))
-        # for i in range(self.NUM_DRONES):
-        #     for j in range(i):
-        #         d = calculate_distance(states_raw[i, 0:3], states_raw[j, 0:3])
-        #         distances[i, j] = d
-        #         distances[j, i] = d
-        #     distances[i, i] = calculate_distance(states_raw[i, 0:3], self.TARGET[i])
-
-        # for i in range(self.NUM_DRONES):
-        #     # The main goal is to reach the target
-        #     reward = -1 * distances[i, i] * self.NUM_DRONES
-        #     # # The secondary goal is to avoid collisions
-        #     # for j in range(self.NUM_DRONES):
-        #     #     if i != j:
-        #     #         reward += min(distances[i,j] - self.MIN_DISTANCE, 0) * (1 / self.MIN_DISTANCE)
-        #     rewards[i] = reward
         return rewards
 
     ################################################################################
@@ -353,40 +339,6 @@ class HoverAviary(BaseMultiagentAviary):
                                        self.TARGETS[i]  , # tx ty tz
                                       ])
 
-            # xy_boundary  = [-1, 1]
-            # z_boundary   = [ 0, 1]
-            # v_boundary   = [-1, 1]
-            # rpy_boundary = [-1, 1]
-            # w_boundary   = [-1, 1]
-            # d_boundary   = [ 0, 1]
-            # u_boundary   = [-1, 1]
-            # boundary = np.array([
-            #     xy_boundary,
-            #     xy_boundary,
-            #     z_boundary,
-            #     v_boundary,
-            #     v_boundary,
-            #     v_boundary,
-            #     rpy_boundary,
-            #     rpy_boundary,
-            #     rpy_boundary,
-            #     w_boundary,
-            #     w_boundary,
-            #     w_boundary,
-            #     d_boundary,
-            #     u_boundary,
-            #     u_boundary,
-            #     u_boundary,]
-            # )
-            
-            # print("==========================================================================")
-            # print("==========================================================================")
-            # for i in range(self.NUM_DRONES):
-            #     for v, b in zip(obs[i], boundary):
-            #         print(boundary[0], v, boundary[1], boundary[0] <= v, v <= boundary[1])
-            # print("==========================================================================")
-            # print("==========================================================================")
-
             # pprint(obs)
             
             return {i: obs[i, :] for i in range(self.NUM_DRONES)}
@@ -396,5 +348,5 @@ class HoverAviary(BaseMultiagentAviary):
 
     ################################################################################
 
-def calculate_distance(pos1, pos2):
-    return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2 + (pos1[2] - pos2[2])**2)
+def calculate_distance_sq(pos1, pos2):
+    return (pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2 + (pos1[2] - pos2[2])**2
