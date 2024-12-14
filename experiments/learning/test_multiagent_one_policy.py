@@ -52,8 +52,8 @@ from gym_pybullet_drones.utils.utils import sync
 import shared_constants
 
 OWN_OBS_VEC_SIZE = None # Modified at runtime
-ACTION_VEC_SIZE = None # Modified at runtime
-
+ACTION_VEC_SIZE = None  # Modified at runtime
+NUM_DRONES = None       # Modified at runtime
 ############################################################
 class CustomTorchCentralizedCriticModel(TorchModelV2, nn.Module):
     """Multi-agent model that implements a centralized value function.
@@ -69,9 +69,6 @@ class CustomTorchCentralizedCriticModel(TorchModelV2, nn.Module):
     """
 
     def __init__(self, obs_space, action_space, num_outputs, model_config, name):
-        # model_config["fcnet_hiddens"] = [512, 512, 256, 256]
-        model_config["fcnet_hiddens"] = [256, 512, 256]
-
         TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
         nn.Module.__init__(self)
         self.action_model = FullyConnectedNetwork(
@@ -98,61 +95,10 @@ class CustomTorchCentralizedCriticModel(TorchModelV2, nn.Module):
         value_out, _ = self.value_model({"obs": self._model_in[0]}, self._model_in[1], self._model_in[2])
         return torch.reshape(value_out, [-1])
 
-############################################################
-# class FillInActions(DefaultCallbacks):
-#     def on_postprocess_trajectory(self, worker, episode, agent_id, policy_id, policies, postprocessed_batch, original_batches, **kwargs):
-#         to_update = postprocessed_batch[SampleBatch.CUR_OBS]
-#         other_id = 1 if agent_id == 0 else 0
-#         action_encoder = ModelCatalog.get_preprocessor_for_space( 
-#                                                                  # Box(-np.inf, np.inf, (ACTION_VEC_SIZE,), np.float32) # Unbounded
-#                                                                  Box(-1, 1, (ACTION_VEC_SIZE,), np.float32) # Bounded
-#                                                                  )
-#         _, opponent_batch = original_batches[other_id]
-#         # opponent_actions = np.array([action_encoder.transform(a) for a in opponent_batch[SampleBatch.ACTIONS]]) # Unbounded
-#         opponent_actions = np.array([action_encoder.transform(np.clip(a, -1, 1)) for a in opponent_batch[SampleBatch.ACTIONS]]) # Bounded
-#         to_update[:, -ACTION_VEC_SIZE:] = opponent_actions
-
-############################################################
-# def central_critic_observer(agent_obs, **kw):
-#     new_obs = {
-#         0: {
-#             "own_obs": agent_obs[0],
-#             "opponent_obs": agent_obs[1],
-#             "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
-#         },
-#         1: {
-#             "own_obs": agent_obs[1],
-#             "opponent_obs": agent_obs[0],
-#             "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
-#         },
-#     }
-#     return new_obs
-############################################################
 
 def central_critic_observer(agent_obs, **kw):
-    z_index = 2
-    vz_index = 8
-    
-    # average_z = sum(map(lambda obs : obs[z_index], agent_obs.values())) / len(agent_obs)
-    # target_z = max(MIN_HEIGHT, average_z)
-    
-    # print(type(agent_obs), agent_obs[0].shape, target_z)
-    
     new_obs = {
-        # x: {"own_obs": agent_obs[x], "opponent_action": np.zeros(ACTION_VEC_SIZE)} for x in NUM_DRONES
         x: {"own_obs": agent_obs[x],} for x in range(NUM_DRONES)
-        # 0: {
-        #     # "self_obs": np.array([agent_obs[0][z_index], agent_obs[0][vz_index], target_z]),
-        #     "own_obs": agent_obs[0],
-        #     # "opponent_obs": agent_obs[1],
-        #     # "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
-        # },
-        # 1: {
-        #     # "self_obs": np.array([agent_obs[1][z_index], agent_obs[1][vz_index], target_z]),
-        #     "own_obs": agent_obs[1],
-        #     # "opponent_obs": agent_obs[0],
-        #     # "opponent_action": np.zeros(ACTION_VEC_SIZE), # Filled in by FillInActions
-        # },
     }
     return new_obs
 
@@ -219,28 +165,7 @@ if __name__ == "__main__":
 
     #### Register the environment ##############################
     temp_env_name = "this-aviary-v0"
-    if ARGS.exp.split("-")[1] == 'flock':
-        register_env(temp_env_name, lambda _: FlockAviary(num_drones=NUM_DRONES,
-                                                          aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
-                                                          obs=OBS,
-                                                          act=ACT
-                                                          )
-                     )
-    elif ARGS.exp.split("-")[1] == 'leaderfollower':
-        register_env(temp_env_name, lambda _: LeaderFollowerAviary(num_drones=NUM_DRONES,
-                                                                   aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
-                                                                   obs=OBS,
-                                                                   act=ACT
-                                                                   )
-                     )
-    elif ARGS.exp.split("-")[1] == 'meetup':
-        register_env(temp_env_name, lambda _: MeetupAviary(num_drones=NUM_DRONES,
-                                                           aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
-                                                           obs=OBS,
-                                                           act=ACT
-                                                           )
-                     )
-    elif ARGS.exp.split("-")[1] == 'meet_at_height':
+    if ARGS.exp.split("-")[1] == 'meet_at_height':
         register_env(temp_env_name, lambda _: MeetAtHeightAviary(num_drones=NUM_DRONES,
                                                            obs=OBS,
                                                            act=ACT
@@ -263,25 +188,7 @@ if __name__ == "__main__":
         exit()
 
     #### Unused env to extract the act and obs spaces ##########
-    if ARGS.exp.split("-")[1] == 'flock':
-        temp_env = FlockAviary(num_drones=NUM_DRONES,
-                               aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
-                               obs=OBS,
-                               act=ACT
-                               )
-    elif ARGS.exp.split("-")[1] == 'leaderfollower':
-        temp_env = LeaderFollowerAviary(num_drones=NUM_DRONES,
-                                        aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
-                                        obs=OBS,
-                                        act=ACT
-                                        )
-    elif ARGS.exp.split("-")[1] == 'meetup':
-        temp_env = MeetupAviary(num_drones=NUM_DRONES,
-                                aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
-                                obs=OBS,
-                                act=ACT
-                                )
-    elif ARGS.exp.split("-")[1] == 'meet_at_height':
+    if ARGS.exp.split("-")[1] == 'meet_at_height':
         temp_env = MeetAtHeightAviary(num_drones=NUM_DRONES,
                                 obs=OBS,
                                 act=ACT,
@@ -301,8 +208,6 @@ if __name__ == "__main__":
         exit()
     observer_space = Dict({
         "own_obs": temp_env.observation_space[0],
-        # "opponent_obs": temp_env.observation_space[0],
-        # "opponent_action": temp_env.action_space[0],
     })
     action_space = temp_env.action_space[0]
 
@@ -321,27 +226,11 @@ if __name__ == "__main__":
     config["model"] = { 
         "custom_model": "cc_model",
     }
-    
-    #### Set up the multiagent params of the trainer's config ##
-    # config["multiagent"] = {
-    #     "policies": {
-    #         f"pol{x}": (None, observer_space, action_space, {"agent_id": x,})
-    #         for x in range(NUM_DRONES)
-    #     },
-    #     # "policies": {
-    #     #     "pol0": (None, observer_space, action_space, {"agent_id": 0,}),
-    #     #     "pol1": (None, observer_space, action_space, {"agent_id": 1,}),
-    #     # },
-    #     "policy_mapping_fn": lambda x: f"pol{x}", # Function mapping agent ids to policy ids
-    #     "observation_fn": central_critic_observer, # See rllib/evaluation/observation_function.py for more info
-    # }
+
     config["multiagent"] = {
         "policies": {
             "pol": (None, observer_space, action_space, {}),
-            # "pol0": (None, observer_space, action_space, {"agent_id": 0,}),
-            # "pol1": (None, observer_space, action_space, {"agent_id": 1,}),
         },
-        # "policy_mapping_fn": lambda x: "pol0" if x == 0 else "pol1", # # Function mapping agent ids to policy ids
         "policy_mapping_fn": lambda x: "pol",
         "observation_fn": central_critic_observer, # See rllib/evaluation/observation_function.py for more info
     }
@@ -353,40 +242,10 @@ if __name__ == "__main__":
     agent.restore(checkpoint)
 
     #### Extract and print policies ############################
-    # policy0 = agent.get_policy("pol0")
-    # print("action model 0", policy0.model.action_model)
-    # print("value model 0", policy0.model.value_model)
-    # policy1 = agent.get_policy("pol1")
-    # print("action model 1", policy1.model.action_model)
-    # print("value model 1", policy1.model.value_model)
     policy = agent.get_policy("pol")
 
     #### Create test environment ###############################
-    if ARGS.exp.split("-")[1] == 'flock':
-        test_env = FlockAviary(num_drones=NUM_DRONES,
-                               aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
-                               obs=OBS,
-                               act=ACT,
-                               gui=True,
-                               record=ARGS.record
-                               )
-    elif ARGS.exp.split("-")[1] == 'leaderfollower':
-        test_env = LeaderFollowerAviary(num_drones=NUM_DRONES,
-                                        aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
-                                        obs=OBS,
-                                        act=ACT,
-                                        gui=True,
-                                        record=ARGS.record
-                                        )
-    elif ARGS.exp.split("-")[1] == 'meetup':
-        test_env = MeetupAviary(num_drones=NUM_DRONES,
-                                aggregate_phy_steps=shared_constants.AGGR_PHY_STEPS,
-                                obs=OBS,
-                                act=ACT,
-                                gui=True,
-                                record=ARGS.record
-                                )
-    elif ARGS.exp.split("-")[1] == 'meet_at_height':
+    if ARGS.exp.split("-")[1] == 'meet_at_height':
         test_env = MeetAtHeightAviary(num_drones=NUM_DRONES,
                                 obs=OBS,
                                 act=ACT,
@@ -431,12 +290,30 @@ if __name__ == "__main__":
         exit()
     start = time.time()
 
+    import cv2
+    fps = 60
+    width, height = 640, 480
+    view_matrix = p.computeViewMatrix(
+        cameraEyePosition=[1, 1, 1],
+        cameraTargetPosition=[0, 0, 0],
+        cameraUpVector=[0, 0, 1]
+    )
+    projection_matrix = p.computeProjectionMatrixFOV(
+        fov=60,
+        aspect=width / height,
+        nearVal=0.1,
+        farVal=100
+    )
+
+    out = cv2.VideoWriter('pybullet_simulation.avi', cv2.VideoWriter_fourcc(*'XVID'), fps, (width, height))
+    time.sleep(10)
     for i in range(6*int(test_env.SIM_FREQ/test_env.AGGR_PHY_STEPS)): # Up to 6''
         #### Deploy the policies ###################################
-        # temp = {}
-        # temp[0] = policy0.compute_single_action(np.hstack([action[1], obs[1], obs[0]])) # Counterintuitive order, check params.json
-        # temp[1] = policy1.compute_single_action(np.hstack([action[0], obs[0], obs[1]]))
-        # action = {0: temp[0][0], 1: temp[1][0]}
+        frame = p.getCameraImage(width=width, height=height, viewMatrix=view_matrix, projectionMatrix=projection_matrix)
+        rgb = frame[2]  # Extract the RGB data
+        image = np.reshape(rgb, (height, width, 4))  # Convert to RGBA image array
+        img = cv2.cvtColor(rgb, cv2.COLOR_RGBA2BGR)  # Convert RGBA to BGR (OpenCV format)
+        out.write(img)
 
         temp = {}
         for i in range(NUM_DRONES):
@@ -448,10 +325,6 @@ if __name__ == "__main__":
 
         obs, reward, done, info = test_env.step(action)
         test_env.render()
-        # print("Observation")
-        # print(obs)
-        print("Action")
-        print()
         if OBS==ObservationType.KIN:
             info = test_env._computeInfo()
             for j in range(NUM_DRONES):

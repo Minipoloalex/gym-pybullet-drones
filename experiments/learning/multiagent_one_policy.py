@@ -80,9 +80,6 @@ class CustomTorchCentralizedCriticModel(TorchModelV2, nn.Module):
     """
 
     def __init__(self, obs_space, action_space, num_outputs, model_config, name):
-        model_config["fcnet_hiddens"] = [256, 512, 512, 256]
-        # model_config["fcnet_activation"] = "relu"
-
         TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
         nn.Module.__init__(self)
         print(model_config)
@@ -149,7 +146,7 @@ if __name__ == "__main__":
         OWN_OBS_VEC_SIZE = 15 + 4 * (NUM_DRONES - 1)
     elif ARGS.env == 'hover':
         OWN_OBS_VEC_SIZE = 19
-        TIMESTEPS = 5_000_000
+        TIMESTEPS = 2_000_000
     else:
         print("[ERROR] Unknown environment")
     if ARGS.act in [ActionType.ONE_D_RPM, ActionType.ONE_D_DYN, ActionType.ONE_D_PID]:
