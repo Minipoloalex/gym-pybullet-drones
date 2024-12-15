@@ -47,20 +47,15 @@ from ray.rllib.policy.sample_batch import SampleBatch
 from ray.rllib.env.multi_agent_env import ENV_STATE
 
 from gym_pybullet_drones.envs.BaseAviary import DroneModel, Physics
-from gym_pybullet_drones.envs.multi_agent_rl.FlockAviary import FlockAviary
-from gym_pybullet_drones.envs.multi_agent_rl.LeaderFollowerAviary import LeaderFollowerAviary
-from gym_pybullet_drones.envs.multi_agent_rl.MeetupAviary import MeetupAviary
-from gym_pybullet_drones.envs.multi_agent_rl.FigureAviary import FigureAviary
 from gym_pybullet_drones.envs.multi_agent_rl.MeetAtHeightAviary import MeetAtHeightAviary
 from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType
 from gym_pybullet_drones.utils.Logger import Logger
 
 import shared_constants
 
-from pprint import pprint
-
 OWN_OBS_VEC_SIZE = None # Modified at runtime
-ACTION_VEC_SIZE = None # Modified at runtime
+ACTION_VEC_SIZE = None  # Modified at runtime
+NUM_DRONES = None       # modified at runtime
 
 #### Useful links ##########################################
 # Workflow: github.com/ray-project/ray/blob/master/doc/source/rllib-training.rst
@@ -149,9 +144,6 @@ if __name__ == "__main__":
     OWN_OBS_VEC_SIZE = 3
     ACTION_VEC_SIZE = 1
 
-    #### Uncomment to debug slurm scripts ######################
-    # exit()
-
     #### Initialize Ray Tune ###################################
     ray.shutdown()
     ray.init(ignore_reinit_error=True)
@@ -179,12 +171,6 @@ if __name__ == "__main__":
         "own_obs": temp_env.observation_space[0],
     })
     action_space = temp_env.action_space[0]
-    # print("----------------------------------------------------")
-    # print("----------------------------------------------------")
-    # print(temp_env.observation_space[0].shape)
-    # print(action_space.shape)
-    # print("----------------------------------------------------")
-    # print("----------------------------------------------------")
 
     #### Note ##################################################
     # RLlib will create ``num_workers + 1`` copies of the
@@ -227,7 +213,6 @@ if __name__ == "__main__":
     }
 
     #### Train #################################################
-    pprint(config)
     results = tune.run(
         "PPO",
         stop=stop,

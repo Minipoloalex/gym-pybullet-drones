@@ -10,7 +10,7 @@ from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import Actio
 from gym_pybullet_drones.envs.multi_agent_rl.BaseMultiagentAviary import BaseMultiagentAviary
 
 class ChaseAviary(BaseMultiagentAviary):
-    """Multi-agent RL problem: Chase."""
+    """Multi-agent RL problem: Chase another drone"""
 
     ################################################################################
 
@@ -67,10 +67,8 @@ class ChaseAviary(BaseMultiagentAviary):
         xs = [0, 0.2]
         ys = [0, 0]
         zs = np.random.choice(possible_height, num_drones)
-        zs = [0.7, 0.1]
-        # initial_xyzs = np.vstack([xs, ys, zs]).transpose().reshape(num_drones, 3)
+        zs = [0.7, 0.1] # Hardcoded to test some things
         initial_xyzs = np.array([[xs[i], ys[i], zs[i]] for i in range(num_drones)])
-        # initial_xyzs = np.array([[0, 0, 0.7], [0.2, 0, 0.1]])
 
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,

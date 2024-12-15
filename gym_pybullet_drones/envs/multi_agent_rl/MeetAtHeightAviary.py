@@ -14,7 +14,7 @@ def log(msg):
     print("Logging stuff: ", msg)
 
 class MeetAtHeightAviary(BaseMultiagentAviary):
-    """Multi-agent RL problem: meet at height."""
+    """Multi-agent RL problem: meet at a coordinated height."""
 
     ################################################################################
 

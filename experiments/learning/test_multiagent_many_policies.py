@@ -39,9 +39,6 @@ from ray.rllib.models import ModelCatalog
 from ray.rllib.policy.sample_batch import SampleBatch
 
 from gym_pybullet_drones.envs.BaseAviary import DroneModel, Physics
-from gym_pybullet_drones.envs.multi_agent_rl.FlockAviary import FlockAviary
-from gym_pybullet_drones.envs.multi_agent_rl.LeaderFollowerAviary import LeaderFollowerAviary
-from gym_pybullet_drones.envs.multi_agent_rl.MeetupAviary import MeetupAviary
 from gym_pybullet_drones.envs.multi_agent_rl.MeetAtHeightAviary import MeetAtHeightAviary
 from gym_pybullet_drones.envs.multi_agent_rl.ChaseAviary import ChaseAviary
 from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType

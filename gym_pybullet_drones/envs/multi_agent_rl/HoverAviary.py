@@ -9,11 +9,8 @@ from gym_pybullet_drones.envs.BaseAviary import DroneModel, Physics, BaseAviary
 from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType
 from gym_pybullet_drones.envs.multi_agent_rl.BaseMultiagentAviary import BaseMultiagentAviary
 
-from pprint import pprint
-
-
 class HoverAviary(BaseMultiagentAviary):
-    """Multi-agent RL problem: draw a simple figure."""
+    """Multi-agent RL problem: Hover at a given position."""
 
     ################################################################################
 
@@ -212,7 +209,6 @@ class HoverAviary(BaseMultiagentAviary):
 
     def _clipAndNormalizeTarget(self, target):
         """Normalizes a drone's target to the [-1,1] range."""
-        # TODO ?
         MAX_LIN_VEL_XY = 3 
         MAX_LIN_VEL_Z = 1
 
@@ -277,8 +273,6 @@ class HoverAviary(BaseMultiagentAviary):
             raise NotImplementedError()
         elif self.OBS_TYPE == ObservationType.KIN:
             ############################################################
-            #### OBS SPACE OF SIZE = 15 + 4 * (NUM_DRONES - 1)
-            # x y z vx vy vz r p y wx wy wz tx ty tz [d ux uy uz]+
             xy_boundary  = [-1, 1]
             z_boundary   = [ 0, 1]
             v_boundary   = [-1, 1]
@@ -296,7 +290,7 @@ class HoverAviary(BaseMultiagentAviary):
                                quat_boundary[i], quat_boundary[i], quat_boundary[i], quat_boundary[i],
                                rpy_boundary[i], rpy_boundary[i], rpy_boundary[i],
                                w_boundary  [i], w_boundary  [i], w_boundary  [i],
-                               u_boundary  [i], u_boundary  [i], u_boundary  [i]] # TODO ? xy_boundary[i], xy_boundary[i], z_boundary[i]
+                               u_boundary  [i], u_boundary  [i], u_boundary  [i]]
 
             return spaces.Dict({ i: spaces.Box(
                 low=np.array(low_boundaries),
@@ -314,8 +308,7 @@ class HoverAviary(BaseMultiagentAviary):
         Returns
         -------
         dict[int, ndarray]
-            A Dict with NUM_DRONES entries indexed by Id in integer format,
-            each a Box() of shape (15 + 4*(NUM_DRONES - 1),).
+            A Dict with NUM_DRONES entries indexed by Id in integer format
 
         """
         if self.OBS_TYPE == ObservationType.RGB:
@@ -324,9 +317,6 @@ class HoverAviary(BaseMultiagentAviary):
 
         elif self.OBS_TYPE == ObservationType.KIN:
             ############################################################
-            #### OBS SPACE OF SIZE = 15 + 4 * (NUM_DRONES - 1)
-            # x y z vx vy vz r p y wx wy wz tx ty tz [d ux uy uz]+
-
             obs = np.zeros((self.NUM_DRONES, self.OWN_OBS_VEC_SIZE))
             states = np.array([self._clipAndNormalizeState(self._getDroneStateVector(i)) for i in range(self.NUM_DRONES)])
 
@@ -336,10 +326,8 @@ class HoverAviary(BaseMultiagentAviary):
                                        states[i, 3:7]  , # quaternions
                                        states[i,  7:10], # r p y
                                        states[i, 13:16], # wx wy wz
-                                       self.TARGETS[i]  , # tx ty tz
+                                       self.TARGETS[i] , # tx ty tz
                                       ])
-
-            # pprint(obs)
             
             return {i: obs[i, :] for i in range(self.NUM_DRONES)}
             ############################################################

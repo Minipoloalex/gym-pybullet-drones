@@ -39,9 +39,6 @@ from ray.rllib.models import ModelCatalog
 from ray.rllib.policy.sample_batch import SampleBatch
 
 from gym_pybullet_drones.envs.BaseAviary import DroneModel, Physics
-from gym_pybullet_drones.envs.multi_agent_rl.FlockAviary import FlockAviary
-from gym_pybullet_drones.envs.multi_agent_rl.LeaderFollowerAviary import LeaderFollowerAviary
-from gym_pybullet_drones.envs.multi_agent_rl.MeetupAviary import MeetupAviary
 from gym_pybullet_drones.envs.multi_agent_rl.HoverAviary import HoverAviary
 from gym_pybullet_drones.envs.multi_agent_rl.MeetAtHeightAviary import MeetAtHeightAviary
 from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType
@@ -176,7 +173,7 @@ if __name__ == "__main__":
                                                            obs=OBS,
                                                            act=ACT
                                                            )
-                     ) 
+                     )
     elif ARGS.exp.split("-")[1] == 'hover':
         register_env(temp_env_name, lambda _: HoverAviary(num_drones=NUM_DRONES,
                                                            obs=OBS,
@@ -218,7 +215,6 @@ if __name__ == "__main__":
         "num_workers": 0, #0+ARGS.workers,
         "num_gpus": int(os.environ.get("RLLIB_NUM_GPUS", "0")), # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0
         "batch_mode": "complete_episodes",
-        # "callbacks": FillInActions,
         "framework": "torch",
     }
 
@@ -290,31 +286,8 @@ if __name__ == "__main__":
         exit()
     start = time.time()
 
-    import cv2
-    fps = 60
-    width, height = 640, 480
-    view_matrix = p.computeViewMatrix(
-        cameraEyePosition=[1, 1, 1],
-        cameraTargetPosition=[0, 0, 0],
-        cameraUpVector=[0, 0, 1]
-    )
-    projection_matrix = p.computeProjectionMatrixFOV(
-        fov=60,
-        aspect=width / height,
-        nearVal=0.1,
-        farVal=100
-    )
-
-    out = cv2.VideoWriter('pybullet_simulation.avi', cv2.VideoWriter_fourcc(*'XVID'), fps, (width, height))
-    time.sleep(10)
     for i in range(6*int(test_env.SIM_FREQ/test_env.AGGR_PHY_STEPS)): # Up to 6''
         #### Deploy the policies ###################################
-        frame = p.getCameraImage(width=width, height=height, viewMatrix=view_matrix, projectionMatrix=projection_matrix)
-        rgb = frame[2]  # Extract the RGB data
-        image = np.reshape(rgb, (height, width, 4))  # Convert to RGBA image array
-        img = cv2.cvtColor(rgb, cv2.COLOR_RGBA2BGR)  # Convert RGBA to BGR (OpenCV format)
-        out.write(img)
-
         temp = {}
         for i in range(NUM_DRONES):
             # Only need the drone's own observations

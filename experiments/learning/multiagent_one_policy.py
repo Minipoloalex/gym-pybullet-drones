@@ -159,8 +159,6 @@ if __name__ == "__main__":
         print("[ERROR] unknown ActionType")
         exit()
 
-    #### Uncomment to debug slurm scripts ######################
-    # exit()
 
     #### Initialize Ray Tune ###################################
     ray.shutdown()

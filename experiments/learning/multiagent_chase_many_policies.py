@@ -54,7 +54,6 @@ from gym_pybullet_drones.utils.Logger import Logger
 
 import shared_constants
 
-from pprint import pprint
 
 OWN_OBS_VEC_SIZE = None # Modified at runtime
 ACTION_VEC_SIZE = None  # Modified at runtime
@@ -218,7 +217,6 @@ if __name__ == "__main__":
     }
 
     #### Train #################################################
-    pprint(config)
     results = tune.run(
         "PPO",
         stop=stop,
