@@ -4,9 +4,9 @@
 
 This course is focused on multiagent systems. So, in this work, we were mainly focused on Multiagent Reinforcement Learning.
 
-Additionally, since it focuses on reviewing and analysing a paper, we decided to work with the original paper's code, which is from 2021.
+Additionally, since it focuses on reviewing and analysing a paper, we decided to work with the original paper's code, which is from 2021. The paper's **citation** was already present in the forked repository's README [here](#citation).
 
-The presentation slides are in available at the root of the project in [presentation.pdf](presentation.pdf).
+The presentation slides are available at the root of the project in [presentation.pdf](presentation.pdf).
 
 ### Installing libraries
 The work was reproduced and modified using Python version 3.8.10. The pip version was 21.1.1 (adequate for the Python version). To install the libraries in version used for the work results reproduction, you can run `pip install -e .` on the root of the repository.
@@ -25,12 +25,31 @@ Note that, after this initial portion of the README that contains the additional
 It has references to files that we renamed. The original files from the paper's code were renamed to `multiagent_paper.py` (training script) and `test_multiagent_paper.py` (testing script).
 
 
-### Reproduction of multiagent example
+### Reproduction of multiagent example - Leader Follower
+The environment can be found on [gym_pybullet_drones/envs/multi_agent_rl/LeaderFollowerAviary.py](gym_pybullet_drones/envs/multi_agent_rl/LeaderFollowerAviary.py).
 
+To train the drones, run:
 
-```
+```bash
 python multiagent_paper.py --env leaderfollower --act one_d_rpm --num_drones 2
 ```
+
+To test the trained policies, run:
+
+```bash
+python test_multiagent_paper.py --exp ./results/save-leaderfollower-2-cc-kin-one_d_rpm-{month}.{day}.{year}_{hour}.{minute}.{second}/
+```
+
+Further details on the specifics of running these scripts are given in the next section.
+
+
+The following video shows the result obtained for the Leader Follower environment:
+
+![Leader Follower video demonstration](files/videos/leaderfollower.gif)
+
+
+Since the other examples are not multiagent, they were not modified. The way to run these examples is presented in the paper, but not placed here since they are not multiagent and hence not the focus of this work.
+
 ### New environments
 - To run training scripts, you may sometimes need to specify the environment, number of drones
 and action space.
@@ -40,7 +59,10 @@ This folder's name has the environment, number of drones, algorithm, observation
 It also has the date to distinguish different runs.
 
 #### Meet at height Aviary
-This example is shown with 5 drones, but all sizes should work. The action space should be `ONE_D_RPM`.
+The environment can be found on [gym_pybullet_drones/envs/multi_agent_rl/MeetAtHeightAviary.py](gym_pybullet_drones/envs/multi_agent_rl/MeetAtHeightAviary.py).
+
+
+This example is shown with 5 drones, but all drone numbers (>= 2) should work. The action space should be `ONE_D_RPM`.
 
 This environment can train on a single policy like this:
 ```bash
@@ -55,7 +77,15 @@ To test the environment on just one trained policy:
 ```bash
 python test_multiagent_one_policy.py --exp ./results/save-meet_at_height-5-cc-kin-one_d_rpm-{month}.{day}.{year}_{hour}.{minute}.{second}/
 ```
+
+The following video shows the result obtained for the Meet At Height environment:
+
+![Meet At Height video demonstration](files/videos/meet_at_height.gif)
+
+
 #### Chase Aviary
+The environment can be found on [gym_pybullet_drones/envs/multi_agent_rl/ChaseAviary.py](gym_pybullet_drones/envs/multi_agent_rl/ChaseAviary.py).
+
 - Training: This example can only be run with 2 drones. It also requires training with different policies, so a different training script should be used.
 ```bash
 python multiagent_chase_many_policies.py
@@ -65,8 +95,14 @@ python multiagent_chase_many_policies.py
 python test_multiagent_many_policies.py --exp ./results/save-chase-2-cc-kin-one_d_rpm-{month}.{day}.{year}_{hour}.{minute}.{second}/
 ```
 
+The following video shows the result obtained for the Chase environment:
+
+![Chase video demonstration](files/videos/chase.gif)
+
 
 #### Figure Aviary
+The environment can be found on [gym_pybullet_drones/envs/multi_agent_rl/FigureAviary.py](gym_pybullet_drones/envs/multi_agent_rl/FigureAviary.py).
+
 This environment should be run with the `RPM` or `DYN` action spaces.
 These are 4D action spaces, are much harder for the agents to learn.
 
