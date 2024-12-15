@@ -3,16 +3,16 @@ import torch
 import numpy as np
 from tianshou.data import Collector
 from tianshou.env import DummyVectorEnv
-from tianshou.policy import PPOPolicy
+from tianshou.policy import RandomPolicy, PPOPolicy, MultiAgentPolicyManager
 from tianshou.trainer import OnpolicyTrainer
 from tianshou.utils.net.common import ActorCritic, Net
 from tianshou.utils.net.continuous import ActorProb, Critic
 from torch.distributions import Independent, Normal
 
-from gym_pybullet_drones.envs.BaseAviary import DroneModel
-from gym_pybullet_drones.envs.multi_agent_rl.LeaderFollowerAviary import LeaderFollowerAviary
+from gym_pybullet_drones.envs.BaseAviaryTS import DroneModel
+from gym_pybullet_drones.envs.multi_agent_rl.LeaderFollowerAviaryTS import LeaderFollowerAviary
 from gym_pybullet_drones.envs.single_agent_rl.BaseSingleAgentAviary import ActionType, ObservationType
-
+from gym_pybullet_drones.utils.LoggerTS import Logger
 NUM_DRONES = 2
 AGGR_PHY_STEPS = 5
 OBS = ObservationType.KIN
@@ -48,8 +48,11 @@ class MultiAgentEnvWrapper(gym.Env):
         env : gym.Env
             The environment to be wrapped.
         """
-        self.env = env
-        self.num_drones = self.env.NUM_DRONES
+        self.env = env        
+        self.SIM_FREQ = 240
+        self.AGGR_PHY_STEPS = 1
+        self.agents = [0, 1]
+        self.agent_idx = 0
         obs_space = self.env.observation_space[0]
         action_space = self.env.action_space[0]
         self.observation_space = obs_space
@@ -94,6 +97,13 @@ class MultiAgentEnvWrapper(gym.Env):
         terminated_env = self.step_counter >= self.max_steps
         truncated_env = False
         reward = np.mean(list(rewards.values()))
+        for j in range(NUM_DRONES):
+                logger.log(drone=j,
+                           timestamp=i/env.SIM_FREQ,
+                          state= np.hstack([obs_dict[j][0:3], np.zeros(4), obs_dict[j][3:15], np.resize(actions_dict[j], (4))]),
+                          control=np.zeros(12),
+                          reward=reward
+                          )
         return obs_dict[0], reward, terminated_env, truncated_env, {}
 
     def render(self, mode='human'):
@@ -139,12 +149,15 @@ def make_env():
     env = MultiAgentEnvWrapper(env)
     return env
 
-# Create the training and testing environments using DummyVectorEnv
 train_envs = DummyVectorEnv([make_env for _ in range(16)])
 test_envs = DummyVectorEnv([make_env for _ in range(8)])
 
-# Initialize the environment and define dimensions of observation and action spaces
+
 env = make_env()
+logger = Logger(logging_freq_hz=int(env.SIM_FREQ/env.AGGR_PHY_STEPS),
+                    num_drones=NUM_DRONES
+                    )
+
 obs_dim = env.observation_space.shape[0]
 act_dim = env.action_space.shape[0]
 state_shape = (obs_dim,)
@@ -165,6 +178,11 @@ actor_critic = ActorCritic(actor, critic)
 
 # Define the optimizer for training the actor-critic model
 optim = torch.optim.Adam(actor_critic.parameters(), lr=3e-4)
+
+def stop_fn(mean_rewards: float) -> bool:
+        if env.spec.reward_threshold:
+            return mean_rewards >= env.spec.reward_threshold
+        return False
 
 def dist(*logits):
     """Creates a distribution for continuous actions.
@@ -204,23 +222,22 @@ result = OnpolicyTrainer(
     policy=policies[0],
     train_collector=train_collector,
     test_collector=test_collector,
-    max_epoch=80,
-    step_per_epoch=5000,
+    max_epoch=10,
+    step_per_epoch=20000,
     repeat_per_collect=4,
-    episode_per_test=10,
+    episode_per_test=16,
     batch_size=256,
-    step_per_collect=10,
-    stop_fn=lambda mean_rewards: mean_rewards >= -10,
+    step_per_collect=16,
 ).run()
 
 print(f'Finished training! Use {result["duration"]}')
 
 # Evaluate the trained policy
-policy.eval()
 test_collector.reset()
 result = test_collector.collect(n_episode=1, render=1 / 240)
 print(f'Final reward: {result["rews"].mean()}, length: {result["lens"].mean()}')
-
+# logger.save_as_csv("ma") # Optional CSV save
+logger.plot()
 # Close the environments
 train_envs.close()
 test_envs.close()

@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 import numpy as np
-from gymnasium import spaces
+from gym import spaces
 from ray.rllib.env.multi_agent_env import MultiAgentEnv, ENV_STATE
 
 from gym_pybullet_drones.envs.BaseAviary import DroneModel, Physics, BaseAviary
@@ -11,24 +11,7 @@ from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 from gym_pybullet_drones.control.SimplePIDControl import SimplePIDControl
 
 class BaseMultiagentAviary(BaseAviary, MultiAgentEnv):
-    """Base multi-agent environment class for reinforcement learning.
-    
-    This class sets up the environment for multiple drones to interact and learn in a shared space.
-    It includes necessary functionalities like handling observations, actions, and controllers for the drones.
-
-    Attributes
-    ----------
-    OBS_TYPE : ObservationType
-        Defines the type of observation (e.g., kinematic data or RGB images).
-    ACT_TYPE : ActionType
-        Defines the type of action space (e.g., RPM, velocity, PID control).
-    EPISODE_LEN_SEC : int
-        Duration of each episode in seconds (default is 5 seconds).
-    SPEED_LIMIT : float
-        Limit on the speed for velocity-based control actions.
-    ctrl : list
-        List of controllers for each drone.
-        """
+    """Base multi-agent environment class for reinforcement learning."""
     
     ################################################################################
 
@@ -80,11 +63,6 @@ class BaseMultiagentAviary(BaseAviary, MultiAgentEnv):
         act : ActionType, optional
             The type of action space (1 or 3D; RPMS, thurst and torques, waypoint or velocity with PID control; etc.)
 
-        Raises
-        ------
-        ValueError:
-            If num_drones is less than 2 or ActionType.TUN is chosen.
-
         """
         if num_drones < 2:
             print("[ERROR] in BaseMultiagentAviary.__init__(), num_drones should be >= 2")
@@ -92,15 +70,12 @@ class BaseMultiagentAviary(BaseAviary, MultiAgentEnv):
         if act == ActionType.TUN:
             print("[ERROR] in BaseMultiagentAviary.__init__(), ActionType.TUN can only used with BaseSingleAgentAviary")
             exit()
-        
-        # Setup for vision and dynamics attributes
         vision_attributes = True if obs == ObservationType.RGB else False
         dynamics_attributes = True if act in [ActionType.DYN, ActionType.ONE_D_DYN] else False
         self.OBS_TYPE = obs
         self.ACT_TYPE = act
-        self.EPISODE_LEN_SEC = 5 # Default episode length (seconds)
-
-        # Initialize the controller based on the action type
+        self.EPISODE_LEN_SEC = 5
+        #### Create integrated controllers #########################
         if act in [ActionType.PID, ActionType.VEL, ActionType.ONE_D_PID]:
             os.environ['KMP_DUPLICATE_LIB_OK']='True'
             if drone_model in [DroneModel.CF2X, DroneModel.CF2P]:
@@ -109,8 +84,6 @@ class BaseMultiagentAviary(BaseAviary, MultiAgentEnv):
                 self.ctrl = [SimplePIDControl(drone_model=DroneModel.HB) for i in range(num_drones)]
             else:
                 print("[ERROR] in BaseMultiagentAviary.__init()__, no controller is available for the specified drone_model")
-
-        # Call the parent constructor (BaseAviary)
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,
                          neighbourhood_radius=neighbourhood_radius,
@@ -126,18 +99,18 @@ class BaseMultiagentAviary(BaseAviary, MultiAgentEnv):
                          vision_attributes=vision_attributes,
                          dynamics_attributes=dynamics_attributes
                          )
-        
-        # Speed limit for velocity-based actions
+        #### Set a limit on the maximum target speed ###############
         if act == ActionType.VEL:
             self.SPEED_LIMIT = 0.03 * self.MAX_SPEED_KMH * (1000/3600)
 
     ################################################################################
 
     def _addObstacles(self):
-        """Adds obstacles to the environment, primarily used for RGB-based observations.
+        """Add obstacles to the environment.
 
-        If the observation type is RGB, this method adds 4 landmarks (obstacles) to the environment.
-        Otherwise, no obstacles are added.
+        Only if the observation is of type RGB, 4 landmarks are added.
+        Overrides BaseAviary's method.
+
         """
         if self.OBS_TYPE == ObservationType.RGB:
             p.loadURDF("block.urdf",
@@ -166,14 +139,14 @@ class BaseMultiagentAviary(BaseAviary, MultiAgentEnv):
     ################################################################################
 
     def _actionSpace(self):
-        """Returns the action space of the environment for each drone.
-
-        Depending on the action type, the action space size can vary (e.g., RPM control, velocity, PID control).
+        """Returns the action space of the environment.
 
         Returns
         -------
-        dict[int, spaces.Box]
-            A dictionary indexed by drone ID with the action space for each drone.
+        dict[int, ndarray]
+            A Dict() of Box() of size 1, 3, or 4, depending on the action type,
+            indexed by drone Id in integer format.
+
         """
         if self.ACT_TYPE in [ActionType.RPM, ActionType.DYN, ActionType.VEL]:
             size = 4
@@ -296,14 +269,14 @@ class BaseMultiagentAviary(BaseAviary, MultiAgentEnv):
     ################################################################################
 
     def _observationSpace(self):
-        """Returns the observation space for each drone.
-
-        The observation space size depends on the type of observation (e.g., kinematic or RGB).
+        """Returns the observation space of the environment.
 
         Returns
         -------
-        dict[int, spaces.Box]
-            A dictionary with drone IDs as keys, each mapping to the observation space.
+        dict[int, ndarray]
+            A Dict with NUM_DRONES entries indexed by Id in integer format,
+            each a Box() os shape (H,W,4) or (12,) depending on the observation type.
+
         """
         if self.OBS_TYPE == ObservationType.RGB:
             return spaces.Dict({i: spaces.Box(low=0,
@@ -330,14 +303,14 @@ class BaseMultiagentAviary(BaseAviary, MultiAgentEnv):
     ################################################################################
 
     def _computeObs(self):
-        """Computes and returns the current observations of the environment.
-
-        Depending on the observation type, the method retrieves either RGB images or kinematic data.
+        """Returns the current observation of the environment.
 
         Returns
         -------
         dict[int, ndarray]
-            A dictionary with drone IDs as keys, each mapping to the current observation (either RGB or kinematic data).
+            A Dict with NUM_DRONES entries indexed by Id in integer format,
+            each a Box() os shape (H,W,4) or (12,) depending on the observation type.
+
         """
         if self.OBS_TYPE == ObservationType.RGB:
             if self.step_counter%self.IMG_CAPTURE_FREQ == 0: 
@@ -375,12 +348,12 @@ class BaseMultiagentAviary(BaseAviary, MultiAgentEnv):
                                ):
         """Normalizes a drone's state to the [-1,1] range.
 
-        This method is intended to be implemented in subclasses, as the state normalization
-        may vary depending on the type of state information.
+        Must be implemented in a subclass.
 
         Parameters
         ----------
         state : ndarray
-            The state vector of the drone to be normalized.
+            Array containing the non-normalized state of a single drone.
+
         """
         raise NotImplementedError
